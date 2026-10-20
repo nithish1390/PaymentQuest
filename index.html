@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Super Banker Bros.</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one-column arcade console — desk picker, then HUD strip, brief ticket, play field, touch pad. Single dark "banknote vault" look by choice. */
+:root{
+  --vault:#0b1d1a; --ink:#10302a; --panel:#153a33; --panel-2:#1b463e; --line:#2a5a50;
+  --fg:#e6f3ec; --muted:#97bfb2; --paper:#eef7f0; --paper-ink:#10302a;
+  --gold:#f2c14e; --gold-deep:#b8861b; --red:#ff7262; --ok:#5fd893;
+  --f-display:"Pixelify Sans","Courier New",monospace;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--vault);color:var(--fg)}
+body{
+  font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px 36px;
+  background-image:
+    repeating-radial-gradient(circle at 85% -10%, rgba(242,193,78,.045) 0 1px, transparent 1px 9px),
+    linear-gradient(180deg,#0e2622 0%,var(--vault) 60%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.wrap > .wrap{width:100%}
+body.playing .wrap{max-width:1560px;gap:14px}
+body.playing{padding-block:14px 20px}
+body.playing .ticket h2{font-size:clamp(18px,1.7vw,30px)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.desk:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* ---------- Menu ---------- */
+.brand{display:flex;flex-direction:column;gap:6px;padding-top:6px}
+.brand h1{
+  font-family:var(--f-display);font-weight:700;margin:0;
+  font-size:clamp(40px,8vw,72px);line-height:.95;letter-spacing:.02em;color:var(--gold);
+  text-shadow:0 4px 0 var(--gold-deep),0 8px 0 rgba(0,0,0,.35);text-wrap:balance;
+}
+.brand p{margin:0;color:var(--muted);max-width:62ch}
+.how{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.how span{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--fg);background:var(--ink)}
+.label{font-family:var(--f-mono);font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold)}
+.avatars{display:flex;flex-wrap:wrap;gap:10px}
+.av{display:flex;align-items:center;gap:10px;background:var(--ink);border:2px solid var(--line);border-radius:10px;padding:6px 14px 6px 6px}
+.av canvas{width:48px;height:56px;background:var(--panel);border-radius:6px}
+.av b{display:block;font-family:var(--f-display);font-size:17px;font-weight:500}
+.av small{color:var(--muted);font-size:12px}
+.av[aria-pressed="true"]{border-color:var(--gold);background:var(--panel)}
+.desks{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:12px}
+.desk{
+  text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0;
+  background:var(--ink);border:2px solid var(--line);border-radius:12px;padding:14px 14px 12px;
+  transition:transform .12s ease,border-color .12s ease,background .12s ease;
+}
+.desk:hover{transform:translateY(-3px);border-color:var(--gold);background:var(--panel)}
+.desk .code{align-self:flex-start;font-family:var(--f-display);font-size:14px;letter-spacing:.08em;color:var(--paper-ink);background:var(--gold);border-radius:4px;padding:2px 7px;box-shadow:0 3px 0 var(--gold-deep)}
+.desk h3{margin:4px 0 0;font-family:var(--f-display);font-weight:500;font-size:22px;line-height:1.1}
+.desk p{margin:0;color:var(--muted);font-size:13.5px}
+.desk .meta{margin-top:auto;padding-top:6px;font-family:var(--f-mono);font-size:12px;color:var(--fg);display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+.desk .meta span:last-child{color:var(--gold)}
+
+/* ---------- Game ---------- */
+.hud{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;background:var(--ink);border:2px solid var(--line);border-radius:12px;padding:8px 10px}
+.hud .btn-sm{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+.hud .btn-sm:hover{border-color:var(--gold)}
+.hud .desk-name{font-family:var(--f-display);font-size:19px;display:flex;align-items:center;gap:8px;min-width:0}
+.hud .desk-name .code{font-size:12px;color:var(--paper-ink);background:var(--gold);border-radius:4px;padding:1px 6px}
+.hud .stats{margin-left:auto;display:flex;align-items:center;gap:16px;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.hud .stats b{font-family:var(--f-display);font-size:20px;color:var(--gold);font-weight:500}
+.hearts{display:flex;gap:3px}
+.heart{width:16px;height:14px;display:inline-block;background:var(--red);clip-path:polygon(50% 100%,0 40%,0 15%,15% 0,35% 0,50% 15%,65% 0,85% 0,100% 15%,100% 40%)}
+.heart.off{background:var(--line)}
+
+.ticket{
+  position:relative;background:var(--paper);color:var(--paper-ink);border-radius:12px;padding:14px 16px 12px;
+  display:flex;flex-direction:column;gap:10px;
+  background-image:repeating-linear-gradient(90deg,rgba(16,48,42,.05) 0 1px,transparent 1px 22px);
+  box-shadow:0 4px 0 #b9cfc2;
+}
+.ticket .top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--f-mono);font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:#3c6a5e}
+.ticket h2{margin:0;font-family:var(--f-body);font-weight:700;font-size:clamp(18px,2.4vw,23px);line-height:1.25;text-wrap:balance}
+.slots{display:flex;flex-wrap:wrap;gap:8px}
+.slot{font-family:var(--f-mono);font-size:13px;font-weight:700;border:2px dashed #9cb9ad;border-radius:999px;padding:4px 12px;color:#7b9a8e;min-width:72px;text-align:center}
+.slot.on{border-style:solid;border-color:var(--gold-deep);background:var(--gold);color:var(--paper-ink);animation:pop .3s ease}
+@keyframes pop{0%{transform:scale(.7)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+.tx{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.tx .bank{display:flex;flex-direction:column;line-height:1.15}
+.tx .bank b{font-family:var(--f-display);font-weight:700;font-size:16px}
+.tx .bank small{font-size:12px;color:#3c6a5e}
+.tx .bank:last-child{text-align:right}
+.tx .pipe{position:relative;height:30px;display:flex;align-items:center;justify-content:center;min-width:0}
+.tx .pipe::before{content:"";position:absolute;left:0;right:8px;top:50%;border-top:2px dashed #9cb9ad}
+.tx .pipe::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);border-left:9px solid #9cb9ad;border-top:6px solid transparent;border-bottom:6px solid transparent}
+.tx.back .pipe::before{left:8px;right:0}
+.tx.back .pipe::after{right:auto;left:0;border-left:0;border-right:9px solid #9cb9ad}
+.tx .amt{position:relative;z-index:1;font-family:var(--f-mono);font-weight:700;font-size:13px;background:var(--paper);padding:2px 10px;border:2px solid #9cb9ad;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tx .amt.on{background:var(--gold);border-color:var(--gold-deep)}
+.sent{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.sent b{font-family:var(--f-mono);color:var(--gold)}
+.slot.step{font-family:var(--f-body);font-weight:400;font-size:12.5px;min-width:0}
+.slot small{font-weight:400;opacity:.7}
+.slots .arrow{align-self:center;color:#7b9a8e;font-weight:700}
+.flow{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.flow li{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;font-size:13.5px}
+.flow li span:last-child{text-align:right}
+.flow li b{font-family:var(--f-mono);font-size:12.5px;color:var(--paper-ink);background:var(--gold);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.xml{margin:0;background:var(--vault);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--f-mono);font-size:11.5px;line-height:1.5;overflow-x:auto;color:var(--muted);white-space:pre}
+.ticker{font-size:14px;border-top:1px dashed #9cb9ad;padding-top:8px;min-height:1.45em}
+.ticker b{font-family:var(--f-mono)}
+.ticker.good b{color:#17804a}
+.ticker.bad b{color:#c2392a}
+
+.stage{position:relative;border-radius:12px;overflow:hidden;border:2px solid var(--line);background:#0d2a2f;touch-action:none;user-select:none;-webkit-user-select:none}
+.stage canvas{display:block;width:100%}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(6,18,16,.72);backdrop-filter:blur(2px)}
+.card{background:var(--panel);border:2px solid var(--gold-deep);border-radius:14px;padding:18px 18px 16px;max-width:560px;width:100%;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:10px;box-shadow:0 6px 0 rgba(0,0,0,.35)}
+[hidden]{display:none!important}
+.card > *{flex-shrink:0}
+.card h3{margin:0;font-family:var(--f-display);font-size:28px;font-weight:700;color:var(--gold);line-height:1.05}
+.card p{margin:0;color:var(--fg)}
+.card .muted{color:var(--muted);font-size:14px}
+.terms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.terms li{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr);gap:10px;font-size:14px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.terms li b{font-family:var(--f-mono);font-size:13px;color:var(--gold);overflow-wrap:anywhere}
+.terms li.got b::before{content:"✓ ";color:var(--ok)}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.btn{border:none;border-radius:10px;padding:10px 18px;font-family:var(--f-display);font-size:18px;background:var(--gold);color:var(--paper-ink);box-shadow:0 4px 0 var(--gold-deep)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--gold-deep)}
+.btn.ghost{background:transparent;color:var(--fg);border:2px solid var(--line);box-shadow:none}
+.stars{font-family:var(--f-display);font-size:30px;letter-spacing:.15em;color:var(--gold)}
+.stars .dim{color:var(--line)}
+.kbd{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-bottom-width:3px;border-radius:5px;padding:1px 6px;background:var(--ink)}
+
+.pad{display:none;justify-content:space-between;gap:12px}
+.pad .grp{display:flex;gap:12px}
+.pad button{width:72px;height:60px;border-radius:14px;border:2px solid var(--line);background:var(--panel);font-family:var(--f-display);font-size:24px;touch-action:none}
+.pad button.jump{width:110px;background:var(--gold);color:var(--paper-ink);border-color:var(--gold-deep)}
+.pad button.held{transform:translateY(2px);filter:brightness(1.2)}
+@media (pointer:coarse),(max-width:700px){.pad{display:flex}}
+.help{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+@media (max-width:520px){.hud .stats{margin-left:0;width:100%;justify-content:space-between}}
+@media (prefers-reduced-motion:reduce){.desk,.slot.on{transition:none;animation:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <!-- MENU -->
+  <section id="menu" class="wrap">
+    <header class="brand">
+      <h1>SUPER BANKER BROS.</h1>
+      <p>Pick a banking desk. Read the brief at the top. Then run, jump and grab only the terms that answer it. Wrong grabs cost a heart.</p>
+      <div class="how"><span>← → move</span><span>Space / ↑ jump</span><span>Bump a vault block from below to release terms</span><span>Bump a brick for bonus cash</span><span>P pause</span></div>
+    </header>
+    <div>
+      <div class="label" style="margin-bottom:8px">Your banker</div>
+      <div class="avatars" id="avatars"></div>
+    </div>
+    <div>
+      <div class="label" style="margin-bottom:8px">Choose a desk</div>
+      <div class="desks" id="desks"></div>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="wrap" hidden>
+    <div class="hud">
+      <button class="btn-sm" id="backBtn" type="button">← Desks</button>
+      <div class="desk-name"><span class="code" id="hCode">PAY</span><span id="hName">Payments</span></div>
+      <div class="stats">
+        <span>Score <b id="hScore">0</b></span>
+        <span class="hearts" id="hHearts" aria-label="Hearts"></span>
+        <button class="btn-sm" id="pauseBtn" type="button">Pause</button>
+      </div>
+    </div>
+    <div class="ticket">
+      <div class="top"><span id="tNum">Brief 1 of 4</span><span id="tNeed">Collect 4</span></div>
+      <h2 id="tPrompt">…</h2>
+      <div class="tx" id="tTx" hidden></div>
+      <div class="slots" id="tSlots"></div>
+      <div class="ticker" id="ticker">Bump a vault block from below to release more terms.</div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="field" aria-label="Game field"></canvas>
+      <div class="overlay" id="overlay" hidden><div class="card" id="ovCard"></div></div>
+    </div>
+    <div class="pad" id="pad">
+      <div class="grp">
+        <button type="button" data-k="l" aria-label="Move left">◀</button>
+        <button type="button" data-k="r" aria-label="Move right">▶</button>
+      </div>
+      <button type="button" class="jump" data-k="j" aria-label="Jump">JUMP</button>
+    </div>
+    <div class="help"><span><span class="kbd">←</span> <span class="kbd">→</span> move</span><span><span class="kbd">Space</span> jump</span><span><span class="kbd">P</span> pause</span><span>Terms all look alike. Read before you grab.</span><span>Gold coins are bonus cash.</span></div>
+  </section>
+</div>
+
+<script>
+/* =============== CONTENT =============== */
+const G_ = {
+  // Payments
+  "UPI":"India's 24×7 instant mobile payment system, run by NPCI.",
+  "FedNow":"US Federal Reserve's instant payment service, live since 2023.",
+  "SEPA Instant":"Euro credit transfer credited to the payee within 10 seconds.",
+  "Faster Payments":"UK scheme for near-instant interbank transfers.",
+  "IMPS":"India's 24×7 instant interbank transfer service.",
+  "Cheque":"Paper order to a bank to pay; takes a day or more to clear.",
+  "Letter of credit":"Bank's promise to pay an exporter against compliant documents.",
+  "Repo":"Selling securities with an agreement to buy them back later.",
+  "NAV":"Net asset value: a fund's value per unit.",
+  "Escrow":"Money held by a neutral party until conditions are met.",
+  "MT103":"SWIFT message for a single customer credit transfer.",
+  "MT202":"SWIFT message for a bank-to-bank transfer.",
+  "pacs.008":"ISO 20022 interbank customer credit transfer.",
+  "pain.001":"ISO 20022 payment instruction from a customer to its bank.",
+  "CVV":"Security code printed on a payment card.",
+  "LTV":"Loan-to-value: loan amount as a % of the asset's value.",
+  "ISIN":"12-character international securities identification number.",
+  "KYC":"Know Your Customer: verifying who a client is.",
+  "P/E ratio":"Share price divided by earnings per share.",
+  "RTGS":"India's real-time gross settlement for high-value payments.",
+  "NEFT":"India's electronic transfer, settled in half-hourly batches, 24×7.",
+  "NACH":"India's bulk system for recurring debits and credits like EMIs and salaries.",
+  "ACH":"US batch payment network for payroll and bills.",
+  "BACS":"UK batch system for salaries and direct debits.",
+  "CHAPS":"UK same-day high-value payment system.",
+  "TARGET2":"Eurosystem's high-value settlement system, now called T2.",
+  "Fedwire":"US Federal Reserve's high-value settlement system.",
+  "IBAN":"International Bank Account Number used for cross-border payments.",
+  "BIC":"Bank Identifier Code, also called the SWIFT code.",
+  "IFSC":"11-character code identifying an Indian bank branch.",
+  "ABA routing no.":"9-digit number identifying a US bank.",
+  "Sort code":"6-digit code identifying a UK bank branch.",
+  "CUSIP":"9-character identifier for North American securities.",
+  "Coupon":"Interest a bond pays its holder.",
+  "Haircut":"Percentage cut from collateral value as a safety buffer.",
+  // Cash management
+  "Cash pooling":"Combining group account balances to optimise interest and liquidity.",
+  "Zero balance account":"Sub-account swept to zero each day into a master account.",
+  "Notional pooling":"Balances are offset for interest without moving cash.",
+  "Sweeping":"Automatic transfer of balances between accounts.",
+  "Margin call":"Demand to post more collateral after its value falls.",
+  "Underwriting":"Assessing risk and deciding whether to lend or take on an issue.",
+  "Short selling":"Selling borrowed securities, hoping to buy back cheaper.",
+  "Lockbox":"Bank-run mailbox that receives and processes customer cheques.",
+  "Virtual account":"Unique reference account that identifies who paid.",
+  "Direct debit":"Payment pulled from the payer's account by the payee.",
+  "Remote deposit capture":"Depositing cheques by sending scanned images.",
+  "Positive pay":"Bank matches presented cheques to the company's issued list.",
+  "Bill of lading":"Carrier's receipt and title document for shipped goods.",
+  "Stop-loss order":"Order to sell when the price falls to a set level.",
+  "Dual authorisation":"Two people must approve a payment before release.",
+  "Confirmation of Payee":"Checks the payee name matches the account before paying.",
+  "Payment limits":"Caps on payment value per user, per day or per beneficiary.",
+  "Dividend":"Share of profit paid to shareholders.",
+  "Forfaiting":"Selling export receivables to a bank without recourse.",
+  "Rebalancing":"Restoring a portfolio to its target weights.",
+  "MT940":"SWIFT end-of-day customer statement.",
+  "MT942":"SWIFT intraday interim transaction report.",
+  "camt.053":"ISO 20022 end-of-day bank-to-customer statement.",
+  "BAI2":"US file format for balance and transaction reporting.",
+  "UCP 600":"ICC rules governing documentary credits (LCs).",
+  // Trade
+  "Commercial invoice":"Seller's bill for the goods shipped.",
+  "Packing list":"Itemised contents of each package in a shipment.",
+  "Certificate of origin":"States the country where the goods were made.",
+  "Insurance certificate":"Proof that the cargo is insured.",
+  "Term sheet":"Outline of the key terms of a deal.",
+  "Prospectus":"Offer document for a securities issue.",
+  "Payslip":"Statement of an employee's pay.",
+  "Bank guarantee":"Bank pays the beneficiary if its client fails to perform.",
+  "Standby LC":"LC used as a backup promise of payment.",
+  "Documentary collection":"Banks release shipping documents against payment or acceptance.",
+  "Credit card":"Revolving unsecured consumer credit line.",
+  "Mutual fund":"Pooled investment run by a professional manager.",
+  "Overdraft":"Permission to draw more than the account balance.",
+  "FOB":"Free On Board: risk passes when goods are loaded at the origin port.",
+  "CIF":"Cost, Insurance and Freight: seller pays to the destination port.",
+  "EXW":"Ex Works: buyer collects from the seller's premises.",
+  "DAP":"Delivered At Place: seller delivers; buyer clears import.",
+  "DDP":"Delivered Duty Paid: seller covers delivery and import duty.",
+  "SOFR":"US overnight benchmark interest rate.",
+  "LIBOR":"Former benchmark interest rate, retired in 2023.",
+  "URC 522":"ICC rules for documentary collections.",
+  "ISBP 821":"ICC guide to examining documents under an LC.",
+  "URDG 758":"ICC rules for demand guarantees.",
+  "Incoterms 2020":"ICC delivery terms between buyer and seller.",
+  "Basel III":"Global standards for bank capital and liquidity.",
+  "MiFID II":"EU rules for investment services and markets.",
+  "GDPR":"EU personal data protection law.",
+  "Dodd-Frank":"US financial reform law passed after 2008.",
+  // Collateral
+  "Cash":"The most liquid collateral, usually with no haircut.",
+  "Government bonds":"Sovereign debt; top-quality collateral.",
+  "Corporate bonds":"Debt issued by companies; investment grade is often eligible.",
+  "Index equities":"Shares in a major stock index, accepted with a haircut.",
+  "Goodwill":"Intangible premium paid in an acquisition.",
+  "Mark-to-market":"Revaluing a position at today's market price.",
+  "Variation margin":"Collateral exchanged daily as market values change.",
+  "Initial margin":"Upfront collateral against potential future exposure.",
+  "ISDA Master":"Standard contract for OTC derivatives.",
+  "CSA":"Credit Support Annex: collateral terms under an ISDA.",
+  "GMRA":"Global Master Repurchase Agreement for repos.",
+  "GMSLA":"Global Master Securities Lending Agreement.",
+  "Reverse repo":"Buying securities with an agreement to sell them back.",
+  "Securities lending":"Lending securities against collateral for a fee.",
+  "Tri-party repo":"Repo where a third-party agent manages the collateral.",
+  "Unsecured loan":"Loan with no collateral behind it.",
+  "Wire transfer":"Electronic bank-to-bank payment.",
+  "IPO":"A company's first sale of shares to the public.",
+  // Securities
+  "SEDOL":"7-character identifier for UK and Irish securities.",
+  "FIGI":"Open global identifier for financial instruments.",
+  "Trade confirmation":"Both sides agree the trade details.",
+  "Clearing":"Working out obligations, often via a central counterparty.",
+  "Settlement":"Securities delivered against cash, e.g. T+1.",
+  "Custody":"Safekeeping and servicing of client securities.",
+  "Bookbuilding":"Collecting investor bids to price a new issue.",
+  "Origination":"Finding and structuring a new deal or loan.",
+  "Roadshow":"Marketing meetings with investors before an issue.",
+  "Stock split":"One share becomes several at a lower price.",
+  "Rights issue":"New shares offered first to existing holders.",
+  "Bonus issue":"Free extra shares issued from reserves.",
+  "Merger":"Two companies combine into one.",
+  "CSD":"Central securities depository that holds securities electronically.",
+  "CCP":"Central counterparty that stands between buyer and seller.",
+  "Euroclear":"Belgium-based international securities depository.",
+  "DTCC":"US clearing and settlement utility.",
+  "NSDL":"India's largest securities depository.",
+  "Visa":"Global card payment network.",
+  "Mastercard":"Global card payment network.",
+  // Wealth
+  "Equities":"Ownership shares in companies.",
+  "Fixed income":"Bonds and other debt paying regular interest.",
+  "Real estate":"Property held for income or growth.",
+  "Commodities":"Raw materials such as gold and oil.",
+  "Cash equivalents":"Very short-term, highly liquid holdings.",
+  "Expense ratio":"Yearly fund cost as a % of assets.",
+  "AUM":"Assets under management.",
+  "Sharpe ratio":"Return earned per unit of risk.",
+  "Alpha":"Return above the benchmark.",
+  "Risk profiling":"Assessing how much risk a client can and will take.",
+  "Investment objective":"What the client wants the money to achieve.",
+  "Time horizon":"How long the money will stay invested.",
+  "ETF":"Fund that trades on an exchange like a share.",
+  "PMS":"Portfolio Management Service: an individually managed portfolio.",
+  "REIT":"Trust that owns income-producing real estate.",
+  // Lending
+  "DTI":"Debt-to-income: debt payments as a % of income.",
+  "EMI":"Equated monthly instalment on a loan.",
+  "Credit score":"Number rating creditworthiness, e.g. CIBIL in India.",
+  "Home loan":"Loan secured by the property being bought.",
+  "Auto loan":"Loan secured by the vehicle.",
+  "Gold loan":"Loan secured by pledged gold.",
+  "Loan against property":"Loan secured by property the borrower owns.",
+  "Personal loan":"Unsecured loan for any purpose.",
+  "BNPL":"Buy now, pay later: short-term unsecured credit at checkout.",
+  "Payday loan":"Short unsecured loan until the next salary.",
+  "Disbursement":"Releasing loan money to the borrower.",
+  "Servicing":"Collecting EMIs and managing the loan account.",
+  "Collections":"Recovering overdue payments.",
+  // Risk
+  "CDD":"Customer due diligence.",
+  "EDD":"Enhanced due diligence for high-risk customers.",
+  "STR":"Suspicious transaction report (called SAR in the US and UK).",
+  "Sanctions screening":"Checking parties against sanctions lists.",
+  "CET1 ratio":"Core equity capital as a % of risk-weighted assets.",
+  "LCR":"Liquidity coverage ratio: cash to survive 30 days of stress.",
+  "NSFR":"Net stable funding ratio: funding stable over one year.",
+  "Leverage ratio":"Tier 1 capital against total exposure.",
+  "Credit risk":"A borrower fails to repay.",
+  "Market risk":"Losses from moves in prices or rates.",
+  "Operational risk":"Losses from failed processes, people or systems.",
+  "Liquidity risk":"Not enough cash to meet obligations when due.",
+  // ISO 20022
+  "pain.002":"Status report from a bank to its customer about a payment instruction.",
+  "pain.008":"Direct debit initiation: the creditor asks its bank to collect.",
+  "pain.013":"Request to Pay: the creditor asks the debtor to make a payment.",
+  "pacs.002":"Status report between banks: accepted or rejected.",
+  "pacs.003":"Interbank direct debit.",
+  "pacs.004":"Payment return: sends funds back after settlement.",
+  "pacs.009":"Bank-to-bank transfer of the bank's own funds (replaces MT202).",
+  "pacs.028":"Asks another bank for the status of a payment.",
+  "camt.054":"Notifies the account holder of a debit or credit.",
+  "camt.056":"Request to cancel a payment already sent.",
+  "camt.029":"Answer to a cancellation request or investigation.",
+  "Debtor":"The party paying (<Dbtr>).",
+  "Debtor agent":"The payer's bank (<DbtrAgt>).",
+  "Creditor":"The party being paid (<Cdtr>).",
+  "Creditor agent":"The payee's bank (<CdtrAgt>).",
+  "UETR":"Unique end-to-end transaction reference, a UUID used to track the payment.",
+  "IntrBkSttlmAmt":"Interbank settlement amount, with the currency in its Ccy attribute.",
+  // Currencies
+  "USD":"US dollar. 2 decimal places.",
+  "EUR":"Euro. 2 decimal places.",
+  "INR":"Indian rupee. 2 decimal places (paise).",
+  "GBP":"Pound sterling. 2 decimal places.",
+  "JPY":"Japanese yen. 0 decimal places.",
+  "CHF":"Swiss franc. 2 decimal places.",
+  "AED":"UAE dirham. 2 decimal places.",
+  "CAD":"Canadian dollar. 2 decimal places.",
+  "AUD":"Australian dollar. 2 decimal places.",
+  "NZD":"New Zealand dollar. 2 decimal places.",
+  "SEK":"Swedish krona. 2 decimal places.",
+  "NOK":"Norwegian krone. 2 decimal places.",
+  "CNY":"Chinese yuan renminbi. 2 decimal places.",
+  "BRL":"Brazilian real. 2 decimal places.",
+  "ZAR":"South African rand. 2 decimal places.",
+  "MXN":"Mexican peso. 2 decimal places.",
+  "SGD":"Singapore dollar. 2 decimal places.",
+  "HKD":"Hong Kong dollar. 2 decimal places.",
+  "KRW":"South Korean won. 0 decimal places.",
+  "THB":"Thai baht. 2 decimal places.",
+  "KWD":"Kuwaiti dinar. 3 decimal places (1,000 fils).",
+  "BHD":"Bahraini dinar. 3 decimal places.",
+  "OMR":"Omani rial. 3 decimal places (1,000 baisa).",
+  "JOD":"Jordanian dinar. 3 decimal places.",
+  "TND":"Tunisian dinar. 3 decimal places.",
+  "EURO":"A name, not a code. The ISO code is EUR.",
+  "YEN":"A name, not a code. The ISO code is JPY.",
+  "RS":"Short form for rupees, not a code. The ISO code is INR.",
+  "DOLLAR":"A name, not a code. US dollar is USD.",
+  "BTC":"Bitcoin ticker. Not an ISO 4217 currency code.",
+  "UKP":"Not a code. Pound sterling is GBP.",
+  "FX spot":"Currency exchange, usually settled two business days later (T+2).",
+  "FX forward":"Currency exchange at a rate fixed today for a future date.",
+  "FX swap":"A spot deal plus the opposite forward deal, booked together.",
+  "NDF":"Non-deliverable forward: settled in cash in USD, used for currencies like INR and KRW.",
+};
+const GLOSS = G_;
+
+const DESKS = [
+ {id:"pay",code:"PAY",name:"Payments",blurb:"Rails, routing codes, amounts and Bank A → Bank B transfers in pacs messages.",qs:[
+  {p:"Collect the instant payment systems that settle in seconds, 24×7.",c:["UPI","FedNow","SEPA Instant","Faster Payments","IMPS"],d:["Cheque","Letter of credit","Repo","NAV","Escrow"],x:"Instant rails credit the payee within seconds at any hour. Cheques and batch systems take longer."},
+  {p:"Collect SWIFT and ISO 20022 payment messages.",c:["MT103","MT202","pacs.008","pain.001"],d:["CVV","LTV","ISIN","KYC","P/E ratio"],x:"MT103 and MT202 are legacy SWIFT formats. pacs.008 and pain.001 are their ISO 20022 counterparts that banks are migrating to."},
+  {p:"Collect payment systems that run in India.",c:["RTGS","NEFT","UPI","NACH","IMPS"],d:["ACH","BACS","CHAPS","TARGET2","Fedwire"],x:"India's rails are run by the RBI (RTGS, NEFT) and NPCI (UPI, IMPS, NACH). The distractors are US, UK and Euro-area equivalents."},
+  {p:"Collect codes used to route a payment to the right bank account.",c:["IBAN","BIC","IFSC","ABA routing no.","Sort code"],d:["ISIN","CUSIP","NAV","Coupon","Haircut"],x:"Account and bank identifiers route money. ISIN and CUSIP identify securities, not bank accounts."},
+  {cash:"INR",p:"RTGS in India has a ₹2,00,000 minimum. Collect amounts RTGS will accept.",c:["INR 2,00,000","INR 5,50,000","INR 12,00,000","INR 2,75,000"],d:["INR 1,99,999","INR 50,000","INR 1,00,000","INR 75,000"],
+   okNote:"At or above the ₹2,00,000 RTGS minimum.",noNote:"Below the ₹2,00,000 minimum. Send it by NEFT, IMPS or UPI instead.",
+   x:"RTGS is for high-value payments, so it has a ₹2 lakh floor and no upper limit. Smaller amounts go through NEFT, IMPS or UPI."},
+  {p:"Priya Traders at Bank A, Mumbai, pays ₹5 lakh to a supplier at Bank B, Chennai, in real time. Build the transfer.",
+   labels:["Currency","Amount","Rail","Bank code"],
+   c:["INR","500000.00","RTGS","IFSC"],d:["RS","IND","50000.00","5000000.00","5,00,000.00","ACH","CHAPS","Sort code","ABA routing no."],
+   notes:{"500000.00":"₹5 lakh as written in a payment message.","IND":"Country code for India, not the currency. Use INR.","50000.00":"That's ₹50 thousand, a tenth of 5 lakh.","5000000.00":"That's ₹50 lakh, ten times too much.","5,00,000.00":"Right value, but payment messages can't contain commas."},
+   tx:{from:"Bank A",fromCity:"Mumbai",to:"Bank B",toCity:"Chennai",ccy:"INR",amt:"500000.00",fill:true,msg:"pacs.008",dbtr:"Priya Traders",cdtr:"Kaveri Textiles",idType:"ifsc",idA:"BKAA0001234",idB:"BKBB0005678"},
+   x:"₹5 lakh is 5,00,000, written 500000.00 in a message. It's above the ₹2 lakh RTGS minimum, and Indian banks are identified by IFSC."},
+  {cash:"EUR",p:"Collect amounts written correctly inside an ISO 20022 amount tag.",c:["1250.00","0.01","75000","1234567.89"],d:["1,250.00","1250,00","$1250","-50.00","1.250.000"],
+   okNote:"Valid: digits and at most one decimal point, with no separators or symbols.",
+   notes:{"1,250.00":"Thousands separators aren't allowed.","1250,00":"The decimal mark must be a point, not a comma.","$1250":"No symbols. The currency goes in the Ccy attribute, e.g. Ccy=\"USD\".","-50.00":"Amounts can't be negative. Send a return or a reversal instead.","1.250.000":"Only one decimal point is allowed."},
+   x:"ISO 20022 writes amounts as <InstdAmt Ccy=\"EUR\">1250.00</InstdAmt>. The number is plain digits with a point, and the currency code sits in Ccy."},
+  {p:"Collect pacs messages, which travel between banks.",c:["pacs.008","pacs.009","pacs.004","pacs.002","pacs.003"],d:["pain.001","pain.008","pain.002","camt.053","camt.054"],x:"pacs means payments clearing and settlement. These messages move between banks and through clearing systems."},
+  {p:"Collect the parties and fields found inside a pacs.008.",c:["Debtor","Debtor agent","Creditor","Creditor agent","UETR","IntrBkSttlmAmt"],d:["ISIN","CVV","FOB","Haircut","NAV"],
+   xmlLabel:"Where they sit in a pacs.008",xml:"PACS008",
+   x:"Every pacs.008 names who pays (debtor), their bank (debtor agent), who is paid (creditor) and their bank (creditor agent), with a settlement amount and a UETR to track it end to end."},
+  {p:"Ledger Tools at Bank A, Mumbai, sends USD 15,000 to a UK partner at Bank B, London. Build the cross-border message.",
+   labels:["Currency","Amount","Message","Bank code"],
+   c:["USD","15000.00","pacs.008","BIC"],d:["GBP","INR","1500.00","150000.00","pain.001","camt.053","IFSC","Sort code"],
+   notes:{"15000.00":"USD 15,000 as written in a payment message.","GBP":"The payment is in US dollars, even though Bank B is in London.","INR":"The payment is in US dollars, not rupees.","1500.00":"That's USD 1,500, ten times too little.","150000.00":"That's USD 150,000, ten times too much.","pain.001":"That's the customer's instruction to Bank A. Between banks it's a pacs.008.","IFSC":"Only for Indian banks. Bank B is in the UK.","Sort code":"Used inside the UK. Cross-border messages identify banks by BIC."},
+   tx:{from:"Bank A",fromCity:"Mumbai",to:"Bank B",toCity:"London",ccy:"USD",amt:"15000.00",fill:true,msg:"pacs.008",dbtr:"Ledger Tools Pvt Ltd",cdtr:"Thames Analytics Ltd",idType:"bic",idA:"BKAAINBBXXX",idB:"BKBBGB2LXXX"},
+   x:"Cross-border payments between banks travel as a pacs.008 over SWIFT, with banks identified by BIC. The currency follows the deal, not the country."},
+  {p:"Sakura KK at Bank A, Tokyo, pays ¥980,000 to a supplier at Bank B, Seoul. Build the message.",
+   labels:["Currency","Amount","Message","Bank code"],
+   c:["JPY","980000","pacs.008","BIC"],d:["YEN","KRW","CNY","980000.00","98000","pacs.009","camt.054","IFSC"],
+   notes:{"980000":"¥980,000 with no decimals, because yen has no minor unit.","KRW":"Korean won. The payment is in yen.","CNY":"Chinese yuan. The payment is in yen.","980000.00":"Yen has no decimal places, so no .00.","98000":"That's ¥98,000, ten times too little.","pacs.009":"For a bank's own funds. A customer payment is a pacs.008."},
+   tx:{from:"Bank A",fromCity:"Tokyo",to:"Bank B",toCity:"Seoul",ccy:"JPY",amt:"980000",fill:true,msg:"pacs.008",dbtr:"Sakura KK",cdtr:"Hangang Parts Co",idType:"bic",idA:"BKAAJPJTXXX",idB:"BKBBKRSEXXX"},
+   x:"JPY has no minor unit, so the amount is 980000 with no decimals. It's a customer payment, so the message is a pacs.008."}
+ ]},
+ {id:"cms",code:"CMS",name:"Cash Management",blurb:"Liquidity, controls and corporate payments from pain.001 to camt.053.",qs:[
+  {p:"Collect liquidity management techniques a treasurer uses across accounts.",c:["Cash pooling","Zero balance account","Notional pooling","Sweeping"],d:["Letter of credit","Margin call","Underwriting","Short selling"],x:"These structures concentrate or offset balances so the group uses surplus cash before borrowing."},
+  {p:"Collect tools that help a company receive and identify incoming money.",c:["Lockbox","Virtual account","Direct debit","Remote deposit capture"],d:["Positive pay","Bill of lading","Coupon","Stop-loss order"],x:"Receivables tools speed up collection and reconciliation. Positive pay is a payables fraud control."},
+  {p:"Collect controls that protect outgoing payments from fraud.",c:["Positive pay","Dual authorisation","Confirmation of Payee","Payment limits"],d:["Lockbox","Dividend","Forfaiting","Rebalancing"],x:"Payables controls stop wrong or fraudulent payments before money leaves the account."},
+  {p:"Collect bank statement and reporting formats a treasurer receives.",c:["MT940","MT942","camt.053","BAI2"],d:["MT103","pacs.008","ISIN","UCP 600"],x:"Statements report balances and transactions. MT103 and pacs.008 are payment instructions, not reports."},
+  {cash:"USD",p:"Notional pooling nets the group's balances: +USD 50,000, −USD 20,000 and +USD 10,000. Collect amounts equal to the net position.",c:["USD 40,000","40000.00","USD 40 thousand","USD 0.04 million"],d:["USD 80,000","USD 60,000","USD 20,000","USD -40,000","USD 30,000"],
+   okNote:"Net position: 50,000 − 20,000 + 10,000 = 40,000.",
+   notes:{"USD 80,000":"Adds the overdraft instead of subtracting it.","USD 60,000":"Only the credit balances. The overdraft must be netted off.","USD 20,000":"That's only the overdraft.","USD -40,000":"Wrong sign. The group is net positive.","USD 30,000":"Leaves out the USD 10,000 account."},
+   x:"Notional pooling offsets credit and debit balances without moving cash, so the group earns interest on the net USD 40,000 instead of paying overdraft interest on one account."},
+  {p:"Ledger Tools at Bank A, Mumbai, pays EUR 1,250.00 to Rhein Supplies at Bank B, Frankfurt. Collect the messages in the order they happen.",order:true,
+   tx:{from:"Bank A",fromCity:"Mumbai",to:"Bank B",toCity:"Frankfurt",ccy:"EUR",amt:"1250.00"},
+   c:["pain.001","pacs.008","camt.054","camt.053"],
+   steps:["Debtor instructs its bank","Debtor bank pays creditor bank","Creditor is notified","End-of-day statement"],
+   d:["pacs.004","camt.056","pain.008","MT940"],
+   flow:[["Debtor (company)","pain.001","Debtor agent"],["Debtor agent","pacs.008","Creditor agent"],["Creditor agent","camt.054","Creditor (supplier)"],["Creditor agent","camt.053","Creditor (supplier)"]],
+   xmlLabel:"A trimmed pacs.008 for this payment",xml:"PACS008",
+   x:"pain is between a customer and its bank, pacs is between banks, and camt is reporting. Along the way the creditor bank can also send a pacs.002 status back, and the debtor bank can send a pain.002 status to its customer."},
+  {p:"Collect pain messages, which travel between a customer and its bank.",c:["pain.001","pain.002","pain.008","pain.013"],d:["pacs.008","pacs.009","camt.056","pacs.004"],x:"pain means payments initiation. A customer starts a payment or a collection, and the bank replies with a status."},
+  {p:"Bank A sent EUR 9,800.00 to the wrong customer at Bank B. Collect the messages used to cancel, return or chase it.",
+   tx:{from:"Bank A",fromCity:"Mumbai",to:"Bank B",toCity:"Frankfurt",ccy:"EUR",amt:"9800.00",dir:-1},c:["camt.056","pacs.004","camt.029","pacs.028"],d:["pain.001","pacs.008","camt.053","pacs.009"],x:"camt.056 asks to cancel and camt.029 answers. If the creditor bank agrees, it sends the money back with a pacs.004. pacs.028 asks for a status update."},
+  {p:"Acme GmbH at Bank A, Frankfurt, pays €1,250 to a supplier at Bank B, Paris, within seconds. Build the transfer.",
+   labels:["Currency","Amount","Rail","Account number"],
+   c:["EUR","1250.00","SEPA Instant","IBAN"],d:["EURO","GBP","125.00","12500.00","1.250,00","CHAPS","Fedwire","IFSC","ABA routing no."],
+   notes:{"1250.00":"€1,250 as written in a payment message.","GBP":"Pound sterling. Both banks are in the euro area.","125.00":"That's €125, ten times too little.","12500.00":"That's €12,500, ten times too much.","1.250,00":"European display style. Messages use a point for decimals and no separators."},
+   tx:{from:"Bank A",fromCity:"Frankfurt",to:"Bank B",toCity:"Paris",ccy:"EUR",amt:"1250.00",fill:true,msg:"pacs.008",dbtr:"Acme GmbH",cdtr:"Lumière SARL",idType:"bic",idA:"BKAADEFFXXX",idB:"BKBBFRPPXXX"},
+   x:"SEPA Instant credits the payee within 10 seconds, any time of day. Accounts in SEPA are identified by IBAN."},
+  {p:"Hudson Corp at Bank A, New York, wires USD 2 million to Bank B, Chicago, the same day. Build the transfer.",
+   labels:["Currency","Amount","Rail","Bank code"],
+   c:["USD","2000000.00","Fedwire","ABA routing no."],d:["US$","USDT","200000.00","20000000.00","2,000,000","CHAPS","BACS","IFSC","Sort code"],
+   notes:{"2000000.00":"USD 2 million as written in a payment message.","US$":"A symbol, not a code. Use USD.","USDT":"Tether, a stablecoin. Not an ISO currency code.","200000.00":"That's USD 200 thousand, a tenth of 2 million.","20000000.00":"That's USD 20 million, ten times too much.","2,000,000":"Right value, but payment messages can't contain commas."},
+   tx:{from:"Bank A",fromCity:"New York",to:"Bank B",toCity:"Chicago",ccy:"USD",amt:"2000000.00",fill:true,msg:"pacs.008",dbtr:"Hudson Corp",cdtr:"Lakeshore Steel Inc",idType:"aba",idA:"026012345",idB:"071054321"},
+   x:"Fedwire settles high-value US payments one at a time in real time. US banks are identified by a 9-digit ABA routing number."},
+  {p:"Bank A, Manchester, moves £50 million of its own money to its account at Bank B, London. Build the transfer.",
+   labels:["Currency","Amount","Message","Rail"],
+   c:["GBP","50000000.00","pacs.009","CHAPS"],d:["UKP","GBX","5000000.00","500000000.00","pacs.008","pain.001","BACS","Faster Payments"],
+   notes:{"50000000.00":"£50 million as written in a payment message.","GBX":"Pence sterling, used for share prices. Payments use GBP.","5000000.00":"That's £5 million, ten times too little.","500000000.00":"That's £500 million, ten times too much.","pacs.008":"For customer payments. A bank moving its own money uses a pacs.009.","BACS":"A batch system that takes three days. Too slow for this.","Faster Payments":"For smaller retail payments. Large interbank amounts go through CHAPS."},
+   tx:{from:"Bank A",fromCity:"Manchester",to:"Bank B",toCity:"London",ccy:"GBP",amt:"50000000.00",fill:true,msg:"pacs.009",idType:"bic",idA:"BKAAGB2MXXX",idB:"BKBBGB2LXXX"},
+   x:"When a bank moves its own money, the message is a pacs.009. In the UK, high-value same-day payments go through CHAPS."}
+ ]},
+ {id:"trd",code:"TRD",name:"Trade Finance",blurb:"Documents, instruments and rules behind global trade.",qs:[
+  {p:"Collect documents in a typical export shipment.",c:["Bill of lading","Commercial invoice","Packing list","Certificate of origin","Insurance certificate"],d:["Term sheet","Prospectus","Margin call","Payslip"],x:"Banks check these shipping documents before paying under an LC or collection."},
+  {p:"Collect trade instruments that reduce payment risk between buyer and seller.",c:["Letter of credit","Bank guarantee","Standby LC","Documentary collection"],d:["Credit card","Mutual fund","Repo","Overdraft"],x:"Each puts a bank's process or promise between buyer and seller so neither has to fully trust the other."},
+  {p:"Collect Incoterms.",c:["FOB","CIF","EXW","DAP","DDP"],d:["SOFR","LIBOR","NAV","KYC","IBAN"],x:"Incoterms say where cost and risk pass from seller to buyer. SOFR and LIBOR are interest rate benchmarks."},
+  {p:"Collect ICC rulebooks used in trade.",c:["UCP 600","URC 522","ISBP 821","URDG 758","Incoterms 2020"],d:["Basel III","MiFID II","GDPR","Dodd-Frank"],x:"The International Chamber of Commerce publishes these rules. The distractors are regulations, not trade rulebooks."},
+  {cash:"USD",p:"An LC is for \"about USD 100,000\". UCP 600 lets \"about\" vary by 10% either way. Collect amounts the bank can pay.",c:["USD 90,000","USD 95,500","USD 100,000","USD 104,250","USD 110,000"],d:["USD 89,999","USD 110,001","USD 120,000","USD 85,000","USD 150,000"],
+   okNote:"Within 10% of USD 100,000.",noNote:"Outside the ±10% tolerance.",
+   notes:{"USD 89,999":"Just under the USD 90,000 floor.","USD 110,001":"Just over the USD 110,000 ceiling."},
+   x:"Under UCP 600 Article 30, \"about\" or \"approximately\" allows up to 10% more or less than the stated amount, so anything from USD 90,000 to USD 110,000 can be paid."}
+ ]},
+ {id:"col",code:"COL",name:"Collateral",blurb:"What secures a trade, how it's valued and the legal paperwork.",qs:[
+  {p:"Collect assets commonly accepted as collateral.",c:["Cash","Government bonds","Corporate bonds","Index equities"],d:["Goodwill","Coupon","BIC","FOB"],x:"Eligible collateral must be liquid and easy to value. Goodwill can't be sold on its own."},
+  {p:"Collect terms used to value and top up collateral.",c:["Haircut","Mark-to-market","Margin call","Variation margin","Initial margin"],d:["Dividend","Bill of lading","Lockbox","Cheque"],x:"Collateral is revalued daily, cut by a haircut, and topped up through margin calls."},
+  {p:"Collect legal agreements behind collateralised trading.",c:["ISDA Master","CSA","GMRA","GMSLA"],d:["UCP 600","Incoterms 2020","Basel III","MiFID II"],x:"ISDA with CSA covers derivatives, GMRA covers repos and GMSLA covers securities lending."},
+  {p:"Collect secured financing transactions.",c:["Repo","Reverse repo","Securities lending","Tri-party repo"],d:["Unsecured loan","Wire transfer","IPO","Letter of credit"],x:"Each moves securities against cash or collateral, with the asset returned at the end."},
+  {cash:"EUR",p:"A bond worth EUR 1,000,000 takes a 5% haircut. Collect the collateral value it counts for.",c:["EUR 950,000","950000.00","EUR 0.95 million","95% of EUR 1,000,000"],d:["EUR 1,050,000","EUR 1,000,000","EUR 50,000","EUR 500,000","EUR 995,000"],
+   okNote:"1,000,000 minus 5% = 950,000.",
+   notes:{"EUR 1,050,000":"Adds the haircut instead of subtracting it.","EUR 1,000,000":"Market value before the haircut.","EUR 50,000":"That's the haircut itself.","EUR 500,000":"A 50% haircut, not 5%.","EUR 995,000":"A 0.5% haircut, not 5%."},
+   x:"A haircut protects the lender if the collateral loses value. With a 5% haircut, EUR 1,000,000 of bonds secures only EUR 950,000."}
+ ]},
+ {id:"sec",code:"SEC",name:"Securities",blurb:"Identifiers, post-trade and the plumbing of capital markets.",qs:[
+  {p:"Collect security identifiers.",c:["ISIN","CUSIP","SEDOL","FIGI"],d:["IBAN","IFSC","BIC","Sort code"],x:"Security identifiers name an instrument. IBAN, IFSC, BIC and sort codes identify banks and accounts."},
+  {p:"Collect post-trade steps that happen after a deal is struck.",c:["Trade confirmation","Clearing","Settlement","Custody"],d:["Underwriting","Bookbuilding","Origination","Roadshow"],x:"Post-trade turns an agreed deal into a final transfer of securities and cash. The distractors happen before a new issue."},
+  {p:"Collect corporate actions.",c:["Dividend","Stock split","Rights issue","Bonus issue","Merger"],d:["Margin call","Haircut","Lockbox","NEFT"],x:"Corporate actions are events started by the issuer that change what holders own or receive."},
+  {p:"Collect securities market infrastructure.",c:["CSD","CCP","Euroclear","DTCC","NSDL"],d:["Visa","Mastercard","UPI","NACH"],x:"Depositories and clearing houses hold and settle securities. Card networks and UPI move payments."},
+  {cash:"INR",p:"You buy 200 shares at ₹1,250 each. Collect the trade value before fees.",c:["INR 2,50,000","250000.00","INR 2.5 lakh","INR 250,000"],d:["INR 25,000","INR 25,00,000","INR 1,450","INR 2,25,000"],
+   okNote:"200 × ₹1,250 = ₹2,50,000.",
+   notes:{"INR 25,000":"One zero short. That's 20 shares.","INR 25,00,000":"One zero too many. That's ₹25 lakh.","INR 1,450":"Adds 200 and 1,250 instead of multiplying.","INR 2,25,000":"That's 180 shares."},
+   x:"Trade value is quantity × price. Brokerage, taxes and exchange fees are added on top in the contract note."}
+ ]},
+ {id:"wlt",code:"WLT",name:"Wealth Management",blurb:"Asset classes, fund metrics and advising the client.",qs:[
+  {p:"Collect asset classes.",c:["Equities","Fixed income","Real estate","Commodities","Cash equivalents"],d:["KYC","Haircut","Bill of lading","IFSC"],x:"An asset class is a group of investments that behave alike. Portfolios mix them to spread risk."},
+  {p:"Collect metrics used to judge a fund.",c:["NAV","Expense ratio","AUM","Sharpe ratio","Alpha"],d:["LTV","MT103","FOB","CSA"],x:"These measure a fund's size, cost and risk-adjusted performance."},
+  {p:"Collect steps in checking an investment suits the client.",c:["Risk profiling","KYC","Investment objective","Time horizon"],d:["Margin call","Settlement","Sweeping","Lockbox"],x:"Suitability means knowing the client, their goals, how long they can invest and how much risk they can take."},
+  {p:"Collect investment vehicles.",c:["Mutual fund","ETF","PMS","REIT"],d:["NEFT","Repo","ISDA Master","Lockbox"],x:"Vehicles are the wrappers that hold investments for clients."},
+  {cash:"INR",p:"A fund has ₹10 crore of net assets and 50 lakh units. Collect its NAV per unit.",c:["INR 20","20.0000","₹20 per unit","INR 20.00"],d:["INR 2","INR 200","INR 0.20","INR 50","INR 5"],
+   okNote:"₹10,00,00,000 ÷ 50,00,000 units = ₹20.",
+   notes:{"INR 2":"Off by ten. ₹10 crore is 100 million, not 10 million.","INR 200":"Off by ten the other way.","INR 0.20":"Off by a hundred.","INR 50":"That would need 20 lakh units.","INR 5":"That would need 2 crore units."},
+   x:"NAV = net assets ÷ units outstanding. 1 crore is 100 lakh, so ₹10 crore ÷ 50 lakh units = ₹20 per unit."}
+ ]},
+ {id:"lnd",code:"LND",name:"Retail Lending",blurb:"Loans, affordability and the loan lifecycle.",qs:[
+  {p:"Collect measures a lender uses to judge affordability.",c:["LTV","DTI","EMI","Credit score"],d:["NAV","ISIN","CSA","FOB"],x:"Lenders compare loan size to asset value and income, and check repayment history."},
+  {p:"Collect secured loans.",c:["Home loan","Auto loan","Gold loan","Loan against property"],d:["Personal loan","Credit card","BNPL","Payday loan"],x:"A secured loan is backed by an asset the lender can claim. The distractors are unsecured."},
+  {p:"Collect stages of the loan lifecycle.",c:["Origination","Underwriting","Disbursement","Servicing","Collections"],d:["Clearing","Custody","Rebalancing","Sweeping"],x:"A loan is sourced, assessed, paid out, serviced and, if needed, recovered."},
+  {cash:"INR",p:"A home loan of ₹1 crore is sanctioned. Collect amounts equal to it.",c:["₹1,00,00,000","INR 10 million","100 lakh","₹10,000,000"],d:["₹1,00,000","INR 1 million","10 lakh","₹1,000,000"],
+   okNote:"Equals ₹1 crore, which is 10 million.",
+   notes:{"₹1,00,000":"That's 1 lakh (100,000).","INR 1 million":"1 million is 10 lakh, not 1 crore.","10 lakh":"10 lakh is 1 million.","₹1,000,000":"1 million in international grouping. That's 10 lakh."},
+   x:"1 lakh = 1,00,000 (100 thousand). 1 crore = 100 lakh = 1,00,00,000 (10 million). Indian grouping puts a comma after the last three digits, then after every two."}
+ ]},
+ {id:"rsk",code:"RSK",name:"Risk & Compliance",blurb:"AML checks, Basel ratios and the risks banks manage.",qs:[
+  {p:"Collect anti-money-laundering controls.",c:["KYC","CDD","EDD","STR","Sanctions screening"],d:["Dividend","Coupon","FOB","NAV"],x:"AML controls identify customers, assess risk and report suspicious activity."},
+  {p:"Collect Basel III regulatory ratios.",c:["CET1 ratio","LCR","NSFR","Leverage ratio"],d:["P/E ratio","Sharpe ratio","Expense ratio","LTV"],x:"Basel III ratios cover capital strength and short- and long-term liquidity."},
+  {p:"Collect the main risk types a bank measures.",c:["Credit risk","Market risk","Operational risk","Liquidity risk"],d:["Cash pooling","ETF","IFSC","Bill of lading"],x:"Banks hold capital and limits against each of these risk types."},
+  {cash:"USD",p:"US banks file a Currency Transaction Report for cash over $10,000 in a day. Collect deposits that need one.",c:["USD 10,000.01","USD 12,500","USD 48,000","USD 10,500"],d:["USD 10,000","USD 9,999","USD 4,200","USD 7,500"],
+   okNote:"More than $10,000 in cash, so a CTR is filed.",noNote:"Not over $10,000, so no CTR.",notes:{"USD 10,000":"Exactly $10,000 is not over the limit, so no CTR."},
+   x:"The trigger is more than $10,000. Splitting deposits to stay under it is called structuring, and that is a crime in itself."}
+ ]},
+ {id:"fx",code:"FX",name:"FX & Currencies",blurb:"ISO currency codes, decimal places and FX deal types.",qs:[
+  {p:"Collect real ISO 4217 currency codes.",c:["USD","EUR","INR","GBP","JPY","CHF","AED"],d:["EURO","YEN","RS","DOLLAR","BTC","UKP"],x:"ISO 4217 gives each currency a three-letter code: usually the country code plus the first letter of the currency's name, like IN + R for INR. Payment messages always use the code, never the name or symbol."},
+  {p:"Collect the G10 currencies, the most traded in the world.",c:["USD","EUR","JPY","GBP","CHF","CAD","AUD","NZD","SEK","NOK"],d:["INR","CNY","BRL","ZAR","AED","MXN","SGD"],noNote:"Not one of the G10 currencies.",x:"The G10 currencies are freely traded and have deep FX markets. Others such as INR and CNY are emerging-market currencies, often with capital controls."},
+  {p:"Collect currencies of Asian countries.",c:["INR","JPY","CNY","SGD","HKD","KRW","THB"],d:["EUR","GBP","CHF","CAD","BRL","ZAR","SEK"],noNote:"Not an Asian currency.",x:"Asian currencies cover major trade corridors. JPY and KRW are unusual because they have no decimal places."},
+  {p:"Collect currencies that use three decimal places.",c:["KWD","BHD","OMR","JOD","TND"],d:["USD","JPY","INR","EUR","KRW"],x:"Most currencies use 2 decimals, a few use 0 (JPY, KRW) and some Gulf and North African currencies use 3. Getting the decimals wrong makes a payment 10 or 100 times off."},
+  {p:"Collect FX deal types.",c:["FX spot","FX forward","FX swap","NDF"],d:["Repo","Cheque","Lockbox","Dividend"],x:"Spot exchanges now, a forward fixes a future rate, a swap pairs the two, and an NDF settles only the difference in a convertible currency."},
+  {cash:"JPY",p:"Yen has no decimal places. Collect correctly written JPY amounts.",c:["JPY 1500","JPY 250000","JPY 98","JPY 10000"],d:["JPY 1500.50","JPY 99.99","JPY 0.5","JPY 120.10"],
+   okNote:"Whole yen. Correct.",noNote:"Yen has no minor unit, so decimals are invalid.",
+   x:"ISO 4217 sets the decimal places for each currency: 0 for JPY and KRW, 2 for USD and INR, 3 for KWD and BHD. Payment systems reject amounts with the wrong decimals."}
+ ]}
+];
+const PACS008 = `<FIToFICstmrCdtTrf>
+  <GrpHdr>
+    <MsgId>LDGR20261016-0001</MsgId>
+    <NbOfTxs>1</NbOfTxs>
+    <SttlmInf><SttlmMtd>CLRG</SttlmMtd></SttlmInf>
+  </GrpHdr>
+  <CdtTrfTxInf>
+    <PmtId>
+      <EndToEndId>INV-4471</EndToEndId>
+      <UETR>3f2b9c1e-7a4d-4c1b-9e2f-5d8a6b0c1f47</UETR>
+    </PmtId>
+    <IntrBkSttlmAmt Ccy="EUR">1250.00</IntrBkSttlmAmt>
+    <ChrgBr>SHAR</ChrgBr>
+    <Dbtr><Nm>Ledger Tools Pvt Ltd</Nm></Dbtr>
+    <DbtrAgt><FinInstnId><BICFI>BKAAINBBXXX</BICFI></FinInstnId></DbtrAgt>
+    <CdtrAgt><FinInstnId><BICFI>BKBBDEFFXXX</BICFI></FinInstnId></CdtrAgt>
+    <Cdtr><Nm>Rhein Supplies GmbH</Nm></Cdtr>
+  </CdtTrfTxInf>
+</FIToFICstmrCdtTrf>`;
+const CASH = [
+  {c:"USD",s:"$",n:"US dollar",a:[10,20,50,100]},{c:"EUR",s:"€",n:"Euro",a:[10,20,50,100]},{c:"INR",s:"₹",n:"Indian rupee",a:[100,200,500,2000]},
+  {c:"GBP",s:"£",n:"Pound sterling",a:[5,10,20,50]},{c:"JPY",s:"¥",n:"Japanese yen",a:[1000,5000,10000]},{c:"CHF",s:"Fr",n:"Swiss franc",a:[10,20,50,100]},
+  {c:"AED",s:"AED",n:"UAE dirham",a:[50,100,200,500]},{c:"SGD",s:"S$",n:"Singapore dollar",a:[10,50,100]},{c:"AUD",s:"A$",n:"Australian dollar",a:[10,20,50,100]},
+  {c:"CAD",s:"C$",n:"Canadian dollar",a:[10,20,50,100]},{c:"CNY",s:"CNY",n:"Chinese yuan",a:[10,50,100]},{c:"HKD",s:"HK$",n:"Hong Kong dollar",a:[20,100,500]},
+  {c:"KRW",s:"₩",n:"South Korean won",a:[1000,10000,50000]},{c:"ZAR",s:"R",n:"South African rand",a:[50,100,200]},{c:"BRL",s:"R$",n:"Brazilian real",a:[10,50,100]},
+  {c:"SAR",s:"SAR",n:"Saudi riyal",a:[50,100,500]},{c:"KWD",s:"KWD",n:"Kuwaiti dinar",a:[1,5,10,20]},{c:"THB",s:"฿",n:"Thai baht",a:[100,500,1000]},
+  {c:"SEK",s:"kr",n:"Swedish krona",a:[50,100,200]},{c:"MXN",s:"MX$",n:"Mexican peso",a:[50,100,500]}
+];
+
+const AVATARS = [
+  {id:"teller",name:"Teller",tag:"Counts every coin",suit:"#2f7d5b",pants:"#1c3b34",skin:"#e2b48c",hat:"visor",hatC:"#58d68d",tie:"#f2c14e"},
+  {id:"trader",name:"Trader",tag:"Fast on the jump",suit:"#3466a8",pants:"#1d2c48",skin:"#c98b62",hat:"hair",hatC:"#2b1d14",tie:"#ff7262"},
+  {id:"treasurer",name:"Treasurer",tag:"Steady hands",suit:"#7a3a4c",pants:"#2a1b22",skin:"#8f5b3c",hat:"bowler",hatC:"#1a1414",tie:"#f2c14e"}
+];
+
+/* =============== HELPERS =============== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const rand = (a,b) => a + Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+function store(k,v){try{ if(v===undefined){return JSON.parse(localStorage.getItem(k)||"null")} localStorage.setItem(k,JSON.stringify(v)); }catch(e){return null}}
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath();}
+function seeded(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const curQ = () => S.desk ? S.desk.qs[S.qi] : null;
+function def(t,q){
+  q = q || curQ();
+  if(q && q.notes && q.notes[t]) return q.notes[t];
+  const extra = q ? (q.c.includes(t) ? q.okNote : q.noNote) : "";
+  return [GLOSS[t], extra].filter(Boolean).join(" ");
+}
+
+/* =============== STATE =============== */
+const MAX_LIVES = 4;
+let best = store("ledgerrun.best") || {};
+let avatarIdx = store("ledgerrun.avatar") ?? 0;
+const S = {screen:"menu", desk:null, qi:0, score:0, lives:MAX_LIVES, collected:new Set(), need:4, cash:[]};
+
+/* =============== AVATAR DRAWING =============== */
+function drawAvatar(c,x,y,face,run,av,air,blink){
+  const A = AVATARS[av];
+  c.save(); c.translate(x+13,y); if(face<0) c.scale(-1,1);
+  if(blink) c.globalAlpha = .35;
+  const sw = air ? 3 : Math.sin(run)*4;
+  // legs
+  c.fillStyle = A.pants;
+  c.fillRect(-7+sw,28,6,10); c.fillRect(1-sw,28,6,10);
+  c.fillStyle = "#111"; c.fillRect(-8+sw,37,8,3); c.fillRect(0-sw,37,8,3);
+  // back arm
+  c.fillStyle = A.suit; c.fillRect(-11,16,4,10);
+  // body
+  c.fillStyle = A.suit; rr(c,-10,14,20,16,4); c.fill();
+  c.fillStyle = "#f4f4ee"; c.beginPath(); c.moveTo(-4,14); c.lineTo(4,14); c.lineTo(0,21); c.closePath(); c.fill();
+  c.fillStyle = A.tie; c.fillRect(-1.5,16,3,9);
+  // front arm + briefcase
+  const arm = air ? -3 : Math.sin(run+Math.PI)*2;
+  c.fillStyle = A.suit; c.fillRect(6,16+arm*0.3,4,10);
+  c.fillStyle = "#6b4423"; rr(c,7,24+arm*0.3,10,8,1.5); c.fill();
+  c.strokeStyle = "#f2c14e"; c.lineWidth = 1; c.strokeRect(10.5,22.5+arm*0.3,3,2);
+  // head
+  c.fillStyle = A.skin; rr(c,-8,0,16,15,5); c.fill();
+  c.fillStyle = "#14201d"; c.fillRect(3,6,2,3);
+  c.fillStyle = "rgba(0,0,0,.18)"; c.fillRect(-2,11,6,1.5);
+  // hats
+  c.fillStyle = A.hatC;
+  if(A.hat==="visor"){ c.fillRect(-9,1,18,4); c.fillRect(3,3,9,2.5); }
+  else if(A.hat==="hair"){ rr(c,-9,-2,18,6,3); c.fill(); c.fillRect(-9,0,4,8); c.fillStyle="#222"; c.fillRect(-10,6,3,5); }
+  else { c.beginPath(); c.ellipse(0,0,8,6,0,Math.PI,0); c.fill(); c.fillRect(-11,-1,22,3); }
+  c.restore();
+}
+
+/* =============== MENU =============== */
+function renderMenu(){
+  const avWrap = $("#avatars"); avWrap.innerHTML = "";
+  AVATARS.forEach((a,i)=>{
+    const b = document.createElement("button"); b.type="button"; b.className="av"; b.setAttribute("aria-pressed", i===avatarIdx);
+    b.innerHTML = `<canvas width="96" height="112"></canvas><span><b>${a.name}</b><small>${a.tag}</small></span>`;
+    const c = b.querySelector("canvas").getContext("2d"); c.scale(2,2); c.imageSmoothingEnabled=false;
+    drawAvatar(c,11,10,1,0.6,i,false,false);
+    b.onclick = ()=>{ avatarIdx=i; store("ledgerrun.avatar",i); renderMenu(); };
+    avWrap.appendChild(b);
+  });
+  const dk = $("#desks"); dk.innerHTML = "";
+  DESKS.forEach(d=>{
+    const b = document.createElement("button"); b.type="button"; b.className="desk";
+    const bs = best[d.id];
+    b.innerHTML = `<span class="code">${d.code}</span><h3>${esc(d.name)}</h3><p>${esc(d.blurb)}</p>
+      <div class="meta"><span>${d.qs.length} briefs</span><span>${bs?("Best "+bs.toLocaleString()):"Not played"}</span></div>`;
+    b.onclick = ()=> startDesk(d.id);
+    dk.appendChild(b);
+  });
+}
+
+/* =============== HUD =============== */
+function renderHud(){
+  const d = S.desk; if(!d) return;
+  $("#hCode").textContent = d.code; $("#hName").textContent = d.name;
+  $("#hScore").textContent = S.score.toLocaleString();
+  $("#hHearts").innerHTML = Array.from({length:MAX_LIVES},(_,i)=>`<span class="heart${i<S.lives?"":" off"}"></span>`).join("");
+  $("#hHearts").setAttribute("aria-label", S.lives+" of "+MAX_LIVES+" hearts");
+}
+function renderTicket(){
+  const q = S.desk.qs[S.qi];
+  $("#tNum").textContent = `Brief ${S.qi+1} of ${S.desk.qs.length}`;
+  $("#tNeed").textContent = `Collect ${S.need}${q.order?" in order":""} · ${S.collected.size} banked`;
+  $("#tPrompt").textContent = q.p;
+  const got = [...S.collected];
+  $("#tSlots").innerHTML = Array.from({length:S.need},(_,i)=>{
+    const term = q.labels ? (S.collected.has(q.c[i]) ? q.c[i] : null) : got[i];
+    if(term) return `<span class="slot on">${q.labels?`<small>${esc(q.labels[i])}:</small> `:q.order?`<small>${i+1}.</small> `:""}${esc(term)}</span>`;
+    if(q.labels) return `<span class="slot step">${esc(q.labels[i])}</span>`;
+    return q.order ? `<span class="slot step">${i+1}. ${esc(q.steps[i])}</span>` : `<span class="slot">?</span>`;
+  }).join(q.order ? `<span class="arrow" aria-hidden="true">→</span>` : "");
+  const t = q.tx, box = $("#tTx");
+  if(!t){ box.hidden = true; }
+  else {
+    box.hidden = false; box.className = "tx" + (t.dir<0 ? " back" : "");
+    let ccy = t.ccy, amt = t.amt, on = true;
+    if(t.fill){ const c=S.collected.has(q.c[0]), a=S.collected.has(q.c[1]); ccy = c?q.c[0]:"???"; amt = a?q.c[1]:"······"; on = c&&a; }
+    box.innerHTML = `<div class="bank"><b>${esc(t.from)}</b><small>${esc(t.fromCity)}</small></div>
+      <div class="pipe"><span class="amt${on?" on":""}">${t.dir<0?"Return ":""}${esc(ccy)} ${esc(amt)}</span></div>
+      <div class="bank"><b>${esc(t.to)}</b><small>${esc(t.toCity)}</small></div>`;
+  }
+}
+function tick(kind,term,msg){
+  const t = $("#ticker"); t.className = "ticker" + (kind?(" "+kind):"");
+  t.innerHTML = term ? `<b>${esc(term)}</b> — ${esc(msg)}` : esc(msg);
+}
+
+/* =============== OVERLAYS =============== */
+let ovPrimary = null;
+function showOverlay(html, primary){
+  $("#ovCard").innerHTML = html; $("#overlay").hidden = false; ovPrimary = primary;
+  const b = $("#ovCard").querySelector("[data-primary]"); if(b) b.focus({preventScroll:true});
+}
+function hideOverlay(){ $("#overlay").hidden = true; ovPrimary = null; }
+function bindOv(map){ for(const [id,fn] of Object.entries(map)){ const el=$("#"+id); if(el) el.onclick=fn; } }
+
+function overlayReady(){
+  const q = S.desk.qs[S.qi];
+  S.screen = "ready";
+  showOverlay(`<span class="label">Brief ${S.qi+1} of ${S.desk.qs.length}</span>
+    <h3>${esc(q.p)}</h3>
+    <p class="muted">Grab ${S.need} correct terms. Jump over the rest. Bump the vault blocks from below to release more, and bump bricks for bonus cash.</p>
+    ${q.order?`<p><b>Order matters.</b> Grab them in the sequence they happen. A right term picked too early just says "not yet".</p>`:""}
+    <div class="row"><button class="btn" id="ovGo" data-primary>Start</button></div>`, ()=>go());
+  bindOv({ovGo:go});
+  function go(){ hideOverlay(); S.screen="play"; seedTokens(); }
+}
+function termList(q){
+  return `<ul class="terms">${q.c.map(t=>`<li class="${S.collected.has(t)?"got":""}"><b>${esc(t)}</b><span>${esc(def(t,q))}</span></li>`).join("")}</ul>`;
+}
+function uuid(){ try{ if(crypto.randomUUID) return crypto.randomUUID(); }catch(e){} return "3f2b9c1e-7a4d-4c1b-9e2f-5d8a6b0c1f47"; }
+function txXML(t){
+  const root = t.msg==="pacs.009" ? "FICdtTrf" : "FIToFICstmrCdtTrf";
+  const agent = id => t.idType==="bic" ? `<FinInstnId><BICFI>${id}</BICFI></FinInstnId>` : `<FinInstnId><ClrSysMmbId><MmbId>${id}</MmbId></ClrSysMmbId></FinInstnId>`;
+  const L = [`<${root}>`,`  <CdtTrfTxInf>`,`    <PmtId><UETR>${uuid()}</UETR></PmtId>`,`    <IntrBkSttlmAmt Ccy="${t.ccy}">${t.amt}</IntrBkSttlmAmt>`];
+  if(t.msg==="pacs.009") L.push(`    <Dbtr>${agent(t.idA)}</Dbtr>`,`    <Cdtr>${agent(t.idB)}</Cdtr>`);
+  else L.push(`    <Dbtr><Nm>${t.dbtr}</Nm></Dbtr>`,`    <DbtrAgt>${agent(t.idA)}</DbtrAgt>`,`    <CdtrAgt>${agent(t.idB)}</CdtrAgt>`,`    <Cdtr><Nm>${t.cdtr}</Nm></Cdtr>`);
+  L.push(`  </CdtTrfTxInf>`,`</${root}>`);
+  return L.join("\n");
+}
+function extrasHTML(q){
+  let h = "";
+  const t = q.tx;
+  if(t) h += `<p class="sent">${t.dir<0?"Returned":"Sent"}: <b>${esc(t.ccy)} ${esc(t.amt)}</b> ${t.dir<0?`from ${esc(t.to)}, ${esc(t.toCity)} back to ${esc(t.from)}, ${esc(t.fromCity)}`:`from ${esc(t.from)}, ${esc(t.fromCity)} to ${esc(t.to)}, ${esc(t.toCity)}`}.</p>`;
+  if(t && t.msg) h += `<span class="label" style="margin-top:4px">How Bank A's ${esc(t.msg)} carries it</span><pre class="xml">${esc(txXML(t))}</pre>`;
+  if(q.flow) h += `<span class="label" style="margin-top:4px">The message flow</span><ol class="flow">${q.flow.map(([a,m,b])=>`<li><span>${esc(a)}</span><b>→ ${esc(m)} →</b><span>${esc(b)}</span></li>`).join("")}</ol>`;
+  if(q.xml) h += `<span class="label" style="margin-top:4px">${esc(q.xmlLabel||"Sample message")}</span><pre class="xml">${esc(q.xml==="PACS008"?PACS008:q.xml)}</pre>`;
+  return h;
+}
+function overlayCleared(){
+  const q = S.desk.qs[S.qi]; const last = S.qi === S.desk.qs.length-1;
+  S.screen = "cleared";
+  showOverlay(`<span class="label">Brief cleared · +200 bonus</span>
+    <h3>Nicely banked</h3>
+    <p>${esc(q.x)}</p>
+    ${extrasHTML(q)}
+    <span class="label" style="margin-top:4px">All the right answers</span>
+    ${termList(q)}
+    <div class="row"><button class="btn" id="ovNext" data-primary>${last?"Finish desk":"Next brief"}</button></div>`, next);
+  bindOv({ovNext:next});
+  function next(){ if(last) overlayDone(); else { S.qi++; beginQuestion(); } }
+}
+function overlayOver(){
+  const q = S.desk.qs[S.qi];
+  S.screen = "over"; saveBest();
+  showOverlay(`<span class="label">Out of hearts</span>
+    <h3>Audit failed</h3>
+    <p>You scored <b>${S.score.toLocaleString()}</b>. Here's what this brief was looking for:</p>
+    ${termList(q)}
+    <div class="row"><button class="btn" id="ovRetry" data-primary>Retry desk</button><button class="btn ghost" id="ovMenu">Choose another desk</button></div>`, ()=>startDesk(S.desk.id));
+  bindOv({ovRetry:()=>startDesk(S.desk.id), ovMenu:toMenu});
+}
+function overlayDone(){
+  S.screen = "done"; const isBest = saveBest();
+  const stars = S.lives>=3?3:S.lives===2?2:1;
+  showOverlay(`<span class="label">${esc(S.desk.name)} desk complete</span>
+    <h3>Books balanced</h3>
+    <div class="stars" aria-label="${stars} of 3 stars">${"★".repeat(stars)}<span class="dim">${"★".repeat(3-stars)}</span></div>
+    <p>Final score <b>${S.score.toLocaleString()}</b>${isBest?" · new best for this desk":""}. Hearts left: ${S.lives} of ${MAX_LIVES}.</p>
+    ${S.cash.length?`<p class="muted">Bonus cash: ${S.cash.length} pickups in ${new Set(S.cash).size} currencies (${esc([...new Set(S.cash)].join(", "))}).</p>`:""}
+    <div class="row"><button class="btn" id="ovMenu" data-primary>Choose another desk</button><button class="btn ghost" id="ovRetry">Replay ${esc(S.desk.name)}</button></div>`, toMenu);
+  bindOv({ovRetry:()=>startDesk(S.desk.id), ovMenu:toMenu});
+}
+function overlayPause(){
+  if(S.screen!=="play") return;
+  S.screen = "paused";
+  showOverlay(`<span class="label">Paused</span><h3>Coffee break</h3>
+    <p class="muted">${esc(S.desk.qs[S.qi].p)}</p>
+    <div class="row"><button class="btn" id="ovRes" data-primary>Resume</button><button class="btn ghost" id="ovMenu">Leave desk</button></div>`, resume);
+  bindOv({ovRes:resume, ovMenu:toMenu});
+  function resume(){ hideOverlay(); S.screen="play"; }
+}
+function saveBest(){
+  const id=S.desk.id; if(!best[id] || S.score>best[id]){ best[id]=S.score; store("ledgerrun.best",best); return true; } return false;
+}
+
+/* =============== FLOW =============== */
+function startDesk(id){
+  S.desk = DESKS.find(d=>d.id===id); S.qi=0; S.score=0; S.lives=MAX_LIVES; S.cash=[];
+  document.body.classList.add("playing");
+  $("#menu").hidden = true; $("#game").hidden = false;
+  window.scrollTo({top:0});
+  layout();
+  beginQuestion();
+}
+function beginQuestion(){
+  const q = S.desk.qs[S.qi];
+  S.collected = new Set(); S.need = Math.min(4, q.c.length);
+  tokens.length = 0; particles.length = 0; floaters.length = 0; cash.length = 0; cashT = 2.5; sendAnim = null;
+  resetPlayer();
+  renderHud(); renderTicket();
+  layout();
+  tick("", null, "Bump a vault block from below to release more terms.");
+  overlayReady();
+}
+function toMenu(){
+  hideOverlay(); S.screen="menu"; S.desk=null;
+  document.body.classList.remove("playing");
+  $("#game").hidden = true; $("#menu").hidden = false; renderMenu();
+}
+
+/* =============== WORLD =============== */
+const cv = $("#field"), ctx = cv.getContext("2d"), stage = $("#stage");
+let W=800,H=440,GY=396,DPR=1,plats=[],vaults=[],bgCanvas=null;
+const P = {x:0,y:0,w:26,h:40,vx:0,vy:0,face:1,run:0,onGround:false,coyote:0,buf:0,inv:0};
+const tokens=[], particles=[], floaters=[], cash=[];
+let spawnT=0, cashT=2.5, shake=0, clock=0;
+
+let SC = 1, layoutKey = "";
+function layout(force){
+  // The world keeps a fixed logical height; SC scales it up so the field fills the screen.
+  const cw = Math.max(300, Math.round(stage.clientWidth || 800));
+  const baseH = cw<600 ? 400 : 440;
+  const top = stage.getBoundingClientRect().top + window.scrollY;
+  const below = ($("#pad").offsetHeight||0) + ($("#game .help").offsetHeight||0) + 70;
+  const availH = Math.max(300, window.innerHeight - top - below);
+  // Fill the height available, but keep the world between 760 and 1200 units wide so sprites never get tiny.
+  const s = cw<600 ? 1 : Math.min(Math.max(availH/baseH, cw/1200), cw/760, 2.6);
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  const key = [cw, s.toFixed(3), dpr].join("|");
+  if(!force && key===layoutKey) return;
+  layoutKey = key;
+  SC = s; W = cw/s; H = baseH; GY = H-44; DPR = dpr;
+  cv.width = Math.round(cw*DPR); cv.height = Math.round(H*SC*DPR); cv.style.height = (H*SC)+"px";
+  buildLevel(); bgCanvas = renderBg();
+  P.x = Math.min(Math.max(P.x,0),W-P.w); if(P.y>GY-P.h) P.y = GY-P.h;
+  [...tokens,...cash].forEach(t=>{ t.x=Math.min(Math.max(t.x,0),W-t.w); if(t.y>GY-t.h) t.y=GY-t.h; });
+}
+function buildLevel(){
+  plats = [{x:-60,y:GY,w:W+120,h:H-GY+40,kind:"ground"}]; vaults=[];
+  const narrow = W<640, s = narrow?32:36, by = GY-140;
+  (narrow?[0.27,0.73]:[0.19,0.5,0.81]).forEach(f=>{
+    const cx = Math.round(W*f);
+    const v = {x:cx-s/2,y:by,w:s,h:s,kind:"vault",bump:0,cool:0};
+    plats.push({x:cx-s/2-s,y:by,w:s,h:s,kind:"brick",bump:0,cool:0}, v, {x:cx+s/2,y:by,w:s,h:s,kind:"brick",bump:0,cool:0});
+    vaults.push(v);
+  });
+  const ly = GY-262, lw = Math.round(W*(narrow?0.3:0.22));
+  plats.push({x:Math.round(W*0.03),y:ly,w:lw,h:14,kind:"ledge"},{x:W-Math.round(W*0.03)-lw,y:ly,w:lw,h:14,kind:"ledge"});
+}
+function resetPlayer(){ P.x=W/2-P.w/2; P.y=GY-P.h; P.vx=0; P.vy=0; P.inv=0; P.face=1; }
+
+function renderBg(){
+  const b = document.createElement("canvas"); b.width=cv.width; b.height=cv.height;
+  const c = b.getContext("2d"); c.scale(DPR*SC,DPR*SC);
+  const g = c.createLinearGradient(0,0,0,GY); g.addColorStop(0,"#0b2430"); g.addColorStop(1,"#14453b");
+  c.fillStyle=g; c.fillRect(0,0,W,H);
+  // guilloche bands, like the fine lines on a banknote
+  c.lineWidth=1;
+  for(let k=0;k<9;k++){
+    c.strokeStyle=`rgba(242,193,78,${0.05+0.012*(k%3)})`; c.beginPath();
+    for(let x=0;x<=W;x+=4){ const y = H*0.24 + Math.sin(x*0.011+k*0.7)*26*Math.sin(x*0.0024+k*0.4) + k*3; x?c.lineTo(x,y):c.moveTo(x,y); }
+    c.stroke();
+  }
+  // rosette
+  const rx = W*0.86, ry = H*0.2;
+  c.strokeStyle="rgba(242,193,78,.07)";
+  for(let i=0;i<36;i++){ c.beginPath(); c.ellipse(rx,ry,52,18,i*Math.PI/36,0,Math.PI*2); c.stroke(); }
+  // skyline
+  const r = seeded(7); let x=-10;
+  while(x<W){ const bw=30+r()*50, bh=60+r()*130;
+    c.fillStyle="#0f322c"; c.fillRect(x,GY-bh,bw,bh);
+    c.fillStyle="rgba(242,193,78,.22)";
+    for(let wy=GY-bh+10; wy<GY-12; wy+=13) for(let wx=x+6; wx<x+bw-6; wx+=10) if(r()>.55) c.fillRect(wx,wy,3,4);
+    x+=bw+4+r()*10; }
+  // central bank facade
+  const fw = Math.min(260,W*0.5), fx = W/2-fw/2, top = GY-232;
+  c.fillStyle="#1a4b42";
+  c.beginPath(); c.moveTo(fx-8,top+34); c.lineTo(W/2,top); c.lineTo(fx+fw+8,top+34); c.closePath(); c.fill();
+  c.fillRect(fx-4,top+34,fw+8,10);
+  const cols=6; for(let i=0;i<cols;i++){ const cx=fx+8+i*(fw-28)/(cols-1); c.fillRect(cx,top+44,12,GY-top-60); }
+  c.fillRect(fx-10,GY-16,fw+20,8); c.fillRect(fx-18,GY-8,fw+36,8);
+  c.fillStyle="rgba(242,193,78,.35)"; c.font='700 11px "JetBrains Mono", monospace'; c.textAlign="center";
+  c.fillText("CENTRAL BANK OF PLAY", W/2, top+28);
+  // ground
+  c.fillStyle="#1d3e37"; c.fillRect(0,GY,W,H-GY);
+  c.fillStyle="#b8861b"; c.fillRect(0,GY,W,3);
+  c.strokeStyle="rgba(0,0,0,.25)";
+  for(let tx=0; tx<W; tx+=40){ c.beginPath(); c.moveTo(tx+((tx/40)%2?20:0),GY+3); c.lineTo(tx+((tx/40)%2?20:0),H); c.stroke(); }
+  c.beginPath(); c.moveTo(0,GY+22); c.lineTo(W,GY+22); c.stroke();
+  return b;
+}
+
+/* =============== TOKENS =============== */
+const SKINS=["coin","note","card","doc"], CUR=["$","€","£","₹","¥"];
+const TOKEN_FONT = '700 13px "Atkinson Hyperlegible", system-ui, sans-serif';
+const widthCache = new Map();
+function tokenW(term){ if(!widthCache.has(term)){ ctx.save(); ctx.font=TOKEN_FONT; widthCache.set(term, Math.ceil(ctx.measureText(term).width)); ctx.restore(); } return 36+widthCache.get(term); }
+function chooseTerm(){
+  const q = S.desk.qs[S.qi]; const onScreen = new Set(tokens.map(t=>t.term));
+  const missing = q.c.filter(t=>!S.collected.has(t) && !onScreen.has(t));
+  const wrong = q.d.filter(t=>!onScreen.has(t));
+  const correct = Math.random() < 0.48;
+  if(q.order && correct){
+    const next = q.c[S.collected.size];
+    if(next && !onScreen.has(next) && Math.random()<0.65) return {term:next, ok:true};
+  }
+  if(correct && missing.length) return {term:pick(missing), ok:true};
+  if(wrong.length) return {term:pick(wrong), ok:false};
+  if(missing.length) return {term:pick(missing), ok:true};
+  return {term:pick(q.c), ok:true};
+}
+function spawnFrom(v){
+  const {term,ok} = chooseTerm(); const w = tokenW(term), h = 26;
+  tokens.push({term,ok,w,h,x:Math.min(Math.max(v.x+v.w/2-w/2,0),W-w),y:v.y-h-2,vx:(Math.random()<.5?-1:1)*rand(30,46),vy:-520,
+    skin:pick(SKINS),cur:pick(CUR),age:0,life:rand(14,18)});
+  v.bump = 0.16; v.cool = 0.45;
+  for(let i=0;i<6;i++) particles.push({x:v.x+v.w/2,y:v.y,vx:rand(-80,80),vy:rand(-220,-80),t:0.5,col:"#f2c14e"});
+}
+function spawnCash(b){
+  const q = curQ(), code = q && (q.cash || (q.tx && q.tx.ccy));
+  const cur = (code && CASH.find(c=>c.c===code)) || pick(CASH);
+  cash.push({x:Math.min(Math.max(b.x+b.w/2-13,0),W-26),y:b.y-30,w:26,h:26,vx:(Math.random()<.5?-1:1)*rand(26,40),vy:-470,age:0,life:rand(8,10),cur,amt:pick(cur.a)});
+  b.bump = 0.14; b.cool = 0.6;
+  for(let i=0;i<4;i++) particles.push({x:b.x+b.w/2,y:b.y,vx:rand(-60,60),vy:rand(-180,-60),t:0.4,col:"#f2c14e"});
+}
+function collectCash(k){
+  const amt = k.amt.toLocaleString("en-US");
+  S.score += 25; S.cash.push(k.cur.c);
+  floaters.push({x:k.x+13,y:k.y,text:`+${k.cur.c} ${amt}`,col:"#f2c14e",t:1});
+  for(let i=0;i<8;i++) particles.push({x:k.x+13,y:k.y+13,vx:rand(-120,120),vy:rand(-240,-80),t:0.5,col:"#f2c14e"});
+  tick("good",`${k.cur.c} ${amt}`,`${k.cur.n}. Bonus cash, +25 points.`);
+  renderHud();
+}
+function seedTokens(){
+  spawnT = 0.9;
+  vaults.forEach((v,i)=> setTimeout(()=>{ if(S.screen==="play"||S.screen==="ready") spawnFrom(v); }, 250*i));
+}
+
+/* =============== PHYSICS =============== */
+const overlap=(a,b)=>a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y;
+function moveBody(e,dt,grav){
+  let hitX=false, head=null; e.onGround=false;
+  e.x += e.vx*dt;
+  for(const p of plats){ if(p.kind==="ledge"||p.kind==="ground") continue;
+    if(overlap(e,p)){ if(e.vx>0) e.x=p.x-e.w; else if(e.vx<0) e.x=p.x+p.w; hitX=true; } }
+  if(e.x<0){e.x=0;hitX=true} if(e.x+e.w>W){e.x=W-e.w;hitX=true}
+  const prevB = e.y+e.h;
+  e.vy = Math.min(e.vy + grav*dt, 1100); e.y += e.vy*dt;
+  for(const p of plats){
+    if(p.kind==="ledge"){
+      if(e.vy>=0 && prevB<=p.y+1 && e.y+e.h>=p.y && e.x+e.w>p.x+2 && e.x<p.x+p.w-2){ e.y=p.y-e.h; e.vy=0; e.onGround=true; }
+      continue;
+    }
+    if(overlap(e,p)){
+      if(e.vy>0){ e.y=p.y-e.h; e.vy=0; e.onGround=true; }
+      else if(e.vy<0){ e.y=p.y+p.h; e.vy=0; head=p; }
+    }
+  }
+  return {hitX,head};
+}
+
+/* =============== INPUT =============== */
+const keys={l:false,r:false,j:false};
+const KEYMAP={ArrowLeft:"l",KeyA:"l",ArrowRight:"r",KeyD:"r",ArrowUp:"j",KeyW:"j",Space:"j"};
+addEventListener("keydown",e=>{
+  if($("#game").hidden) return;
+  if(!$("#overlay").hidden){
+    if((e.code==="Enter"||e.code==="Space") && ovPrimary && document.activeElement?.tagName!=="BUTTON"){ e.preventDefault(); ovPrimary(); }
+    if(e.code==="KeyP"||e.code==="Escape"){ if(S.screen==="paused"){ e.preventDefault(); ovPrimary&&ovPrimary(); } }
+    return;
+  }
+  if(e.code==="KeyP"||e.code==="Escape"){ e.preventDefault(); overlayPause(); return; }
+  const k=KEYMAP[e.code]; if(!k) return; e.preventDefault();
+  if(k==="j" && !keys.j) P.buf=0.12;
+  keys[k]=true;
+});
+addEventListener("keyup",e=>{ const k=KEYMAP[e.code]; if(k) keys[k]=false; });
+document.querySelectorAll("#pad button").forEach(b=>{
+  const k=b.dataset.k;
+  const down=e=>{ e.preventDefault(); try{b.setPointerCapture(e.pointerId)}catch(_){} if(k==="j"&&!keys.j) P.buf=0.12; keys[k]=true; b.classList.add("held"); };
+  const up=e=>{ keys[k]=false; b.classList.remove("held"); };
+  b.addEventListener("pointerdown",down); b.addEventListener("pointerup",up); b.addEventListener("pointercancel",up); b.addEventListener("lostpointercapture",up);
+  b.addEventListener("contextmenu",e=>e.preventDefault());
+});
+$("#pauseBtn").onclick=()=>overlayPause();
+$("#backBtn").onclick=()=>{ if(S.desk && S.score>0) saveBest(); toMenu(); };
+document.addEventListener("visibilitychange",()=>{ if(document.hidden) overlayPause(); });
+
+/* =============== UPDATE =============== */
+function update(dt){
+  clock += dt;
+  // player
+  const speed = AVATARS[avatarIdx].id==="trader" ? 280 : 255;
+  const want = (keys.r?1:0) - (keys.l?1:0);
+  P.vx += (want*speed - P.vx) * Math.min(1, dt*(P.onGround?14:7));
+  if(want) P.face = want;
+  P.coyote = P.onGround ? 0.09 : P.coyote - dt;
+  P.buf -= dt;
+  if(P.buf>0 && P.coyote>0){ P.vy=-800; P.buf=0; P.coyote=0; P.onGround=false; }
+  if(!keys.j && P.vy<-320) P.vy=-320;
+  const {head} = moveBody(P,dt,1900);
+  if(head){
+    if(head.kind==="vault" && head.cool<=0){ if(tokens.length < maxTokens()+2) spawnFrom(head); else head.bump=0.16; }
+    else if(head.kind==="brick" && head.cool<=0 && cash.length<5) spawnCash(head);
+    else head.bump=0.12;
+  }
+  P.run += Math.abs(P.vx)*dt*0.07;
+  if(P.inv>0) P.inv-=dt;
+
+  // blocks
+  for(const p of plats){ if(p.bump>0) p.bump-=dt; if(p.cool>0) p.cool-=dt; }
+
+  // spawn
+  spawnT -= dt;
+  if(spawnT<=0){ spawnT = rand(1.6,2.6); if(tokens.length<maxTokens()) spawnFrom(pick(vaults)); }
+  cashT -= dt;
+  if(cashT<=0){ cashT = rand(3.5,5.5); if(cash.length<3) spawnCash(pick(plats.filter(p=>p.kind==="brick"))); }
+
+  // bonus cash
+  for(let i=cash.length-1;i>=0;i--){
+    const k=cash[i]; k.age+=dt;
+    const {hitX} = moveBody(k,dt,1250);
+    if(hitX) k.vx=-k.vx;
+    if(k.onGround) k.vy=-240;
+    if(k.age>k.life){ cash.splice(i,1); continue; }
+    if(overlap(P,k)){ collectCash(k); cash.splice(i,1); }
+  }
+
+  // tokens
+  for(let i=tokens.length-1;i>=0;i--){
+    const t=tokens[i]; t.age+=dt;
+    const {hitX} = moveBody(t,dt,1150);
+    if(hitX) t.vx=-t.vx;
+    if(t.onGround) t.vy=-200;
+    if(t.age>t.life){ tokens.splice(i,1); continue; }
+    if(overlap(P,t)) { collect(t); tokens.splice(i,1); if(S.screen!=="play") return; }
+  }
+  // fx
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.t-=dt; p.vy+=900*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; if(p.t<=0) particles.splice(i,1); }
+  for(let i=floaters.length-1;i>=0;i--){ const f=floaters[i]; f.t-=dt; f.y-=40*dt; if(f.t<=0) floaters.splice(i,1); }
+  if(shake>0) shake-=dt;
+}
+const maxTokens = () => W<640 ? 5 : 7;
+
+function collect(t){
+  const cx=t.x+t.w/2, cy=t.y;
+  const q = curQ();
+  if(t.ok && q.order && !S.collected.has(t.term) && t.term !== q.c[S.collected.size]){
+    floaters.push({x:cx,y:cy,text:"Not yet",col:"#f2c14e",t:.9});
+    tick("",t.term,`comes later. Next step: ${q.steps[S.collected.size]}.`);
+    return;
+  }
+  if(t.ok){
+    if(!S.collected.has(t.term)){
+      S.collected.add(t.term); S.score+=100;
+      floaters.push({x:cx,y:cy,text:"+100",col:"#5fd893",t:1});
+      tick("good",t.term,def(t.term));
+      for(let i=0;i<14;i++) particles.push({x:cx,y:cy+10,vx:rand(-160,160),vy:rand(-320,-120),t:0.7,col:i%2?"#f2c14e":"#5fd893"});
+      renderTicket(); renderHud();
+      if(S.collected.size>=S.need){
+        S.score+=200; renderHud();
+        if(q.tx){ S.screen="sending"; sendAnim={t:0,dur:reduced?0.6:2}; tick("good",null,`${q.tx.dir<0?"Returning":"Sending"} ${q.tx.ccy} ${q.tx.amt}…`); }
+        else { setTimeout(overlayCleared, 250); S.screen="clearing"; }
+      }
+    } else {
+      S.score+=10; floaters.push({x:cx,y:cy,text:"+10",col:"#f2c14e",t:.8});
+      tick("good",t.term,"already banked. "+def(t.term)); renderHud();
+    }
+  } else {
+    if(P.inv>0){ tick("bad",t.term,"Not this one. "+def(t.term)); return; }
+    S.lives--; P.inv=1.3; if(!reduced) shake=0.3;
+    floaters.push({x:cx,y:cy,text:"✗ −1 heart",col:"#ff7262",t:1.1});
+    for(let i=0;i<10;i++) particles.push({x:cx,y:cy+10,vx:rand(-140,140),vy:rand(-260,-80),t:0.6,col:"#ff7262"});
+    tick("bad",t.term,"Wrong pick. "+def(t.term));
+    renderHud();
+    if(S.lives<=0){ S.screen="dying"; setTimeout(overlayOver, 450); }
+  }
+}
+
+/* =============== RENDER =============== */
+function drawBlock(p){
+  const off = p.bump>0 ? -Math.sin((p.bump/0.16)*Math.PI)*6 : 0;
+  const x=p.x, y=p.y+off, w=p.w, h=p.h;
+  if(p.kind==="brick"){
+    ctx.fillStyle="#2c5a50"; ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="#1a3a33";
+    ctx.fillRect(x,y+h/2-1,w,2); ctx.fillRect(x+w/2-1,y,2,h/2); ctx.fillRect(x+w/4,y+h/2,2,h/2); ctx.fillRect(x+3*w/4,y+h/2,2,h/2);
+    ctx.strokeStyle="#173530"; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2);
+    return;
+  }
+  if(p.kind==="vault"){
+    const used = p.cool>0;
+    const g=ctx.createLinearGradient(x,y,x,y+h); g.addColorStop(0,used?"#5d6f6b":"#9fb6b0"); g.addColorStop(1,used?"#3c4a47":"#5f7a74");
+    ctx.fillStyle=g; rr(ctx,x,y,w,h,4); ctx.fill();
+    ctx.strokeStyle="#b8861b"; ctx.lineWidth=2.5; rr(ctx,x+1.25,y+1.25,w-2.5,h-2.5,4); ctx.stroke();
+    const cx=x+w/2, cy=y+h/2, r=w*0.28;
+    ctx.fillStyle="#24403b"; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="#f2c14e"; ctx.lineWidth=1.5; ctx.stroke();
+    const a = clock*1.6 + x;
+    for(let i=0;i<8;i++){ const an=a+i*Math.PI/4; ctx.beginPath(); ctx.moveTo(cx+Math.cos(an)*r*0.55,cy+Math.sin(an)*r*0.55); ctx.lineTo(cx+Math.cos(an)*r*0.85,cy+Math.sin(an)*r*0.85); ctx.stroke(); }
+    ctx.fillStyle="#f2c14e"; ctx.beginPath(); ctx.arc(cx,cy,2.2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#24403b"; ctx.fillRect(x+4,y+4,3,3); ctx.fillRect(x+w-7,y+4,3,3); ctx.fillRect(x+4,y+h-7,3,3); ctx.fillRect(x+w-7,y+h-7,3,3);
+    return;
+  }
+  if(p.kind==="ledge"){
+    ctx.fillStyle="#244e45"; rr(ctx,x,y,w,h,3); ctx.fill();
+    ctx.fillStyle="#b8861b"; ctx.fillRect(x,y,w,3);
+    ctx.fillStyle="#f2c14e"; for(let rx=x+8; rx<x+w-4; rx+=18) ctx.fillRect(rx,y+7,2,2);
+  }
+}
+function drawToken(t){
+  const fade = t.life - t.age < 2.2 ? (Math.floor(t.age*8)%2 ? 0.35 : 1) : 1;
+  ctx.save(); ctx.globalAlpha = fade;
+  const {x,y,w,h} = t;
+  ctx.fillStyle="rgba(0,0,0,.25)"; rr(ctx,x+1,y+3,w,h,h/2); ctx.fill();
+  ctx.fillStyle="#eef7f0"; rr(ctx,x,y,w,h,h/2); ctx.fill();
+  ctx.strokeStyle="#b8861b"; ctx.lineWidth=2; rr(ctx,x+1,y+1,w-2,h-2,h/2-1); ctx.stroke();
+  const ix=x+15, iy=y+h/2;
+  if(t.skin==="coin"){
+    ctx.fillStyle="#f2c14e"; ctx.beginPath(); ctx.arc(ix,iy,8.5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="#b8861b"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(ix,iy,6,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle="#7a5410"; ctx.font='700 9px "JetBrains Mono", monospace'; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(t.cur,ix,iy+0.5);
+  } else if(t.skin==="note"){
+    ctx.fillStyle="#7fcf9a"; ctx.fillRect(ix-9,iy-6,18,12); ctx.strokeStyle="#2e7a4c"; ctx.lineWidth=1.2; ctx.strokeRect(ix-9,iy-6,18,12);
+    ctx.beginPath(); ctx.arc(ix,iy,3.2,0,Math.PI*2); ctx.stroke();
+  } else if(t.skin==="card"){
+    ctx.fillStyle="#4f8fd6"; rr(ctx,ix-9,iy-6,18,12,2); ctx.fill(); ctx.fillStyle="#f2c14e"; ctx.fillRect(ix-6,iy-2.5,5,4); ctx.fillStyle="#22436b"; ctx.fillRect(ix-9,iy+2.5,18,1.5);
+  } else {
+    ctx.fillStyle="#ffffff"; ctx.fillRect(ix-6,iy-8,12,16); ctx.strokeStyle="#7b9a8e"; ctx.lineWidth=1; ctx.strokeRect(ix-6,iy-8,12,16);
+    ctx.fillStyle="#9cb9ad"; for(let l=0;l<4;l++) ctx.fillRect(ix-4,iy-5+l*3.5,8-(l===3?3:0),1.3);
+  }
+  ctx.fillStyle="#10302a"; ctx.font=TOKEN_FONT; ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.fillText(t.term, x+28, iy+0.5);
+  ctx.restore();
+}
+/* ---- Bank A → Bank B ---- */
+let sendAnim = null;
+const BANK_W = 66;
+const bankX = side => side<0 ? 8 : W-BANK_W-8;
+function drawBank(x,name,city,lit){
+  const w=BANK_W, h=70, y=GY-h;
+  ctx.fillStyle = lit ? "#2f6e60" : "#22564b";
+  ctx.beginPath(); ctx.moveTo(x-4,y+18); ctx.lineTo(x+w/2,y); ctx.lineTo(x+w+4,y+18); ctx.closePath(); ctx.fill();
+  ctx.fillRect(x-2,y+18,w+4,6);
+  for(let i=0;i<4;i++) ctx.fillRect(x+5+i*16,y+27,8,h-35);
+  ctx.fillRect(x-4,GY-8,w+8,8);
+  ctx.fillStyle="#f2c14e"; ctx.beginPath(); ctx.arc(x+w/2,y+12,3,0,Math.PI*2); ctx.fill();
+  ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+  ctx.font='700 13px "Pixelify Sans", monospace'; ctx.fillStyle="#f2c14e"; ctx.fillText(name.toUpperCase(),x+w/2,y-16);
+  ctx.font='500 10px "JetBrains Mono", monospace'; ctx.fillStyle="#97bfb2"; ctx.fillText(city,x+w/2,y-4);
+}
+function sendPos(p){
+  const t = curQ().tx, from = t.dir<0 ? 1 : -1;
+  const ax = bankX(from)+BANK_W/2, bx = bankX(-from)+BANK_W/2, top = GY-96;
+  const e = p<.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+  return {x: ax+(bx-ax)*e, y: top - Math.sin(Math.PI*e)*Math.min(170,H*0.42)};
+}
+function updateSend(dt){
+  clock += dt; sendAnim.t += dt;
+  const p = Math.min(1, sendAnim.t/sendAnim.dur), pos = sendPos(p);
+  if(!reduced) particles.push({x:pos.x+rand(-6,6),y:pos.y+rand(-6,6),vx:rand(-30,30),vy:rand(-30,30),t:0.45,col:"#f2c14e"});
+  for(let i=particles.length-1;i>=0;i--){ const q=particles[i]; q.t-=dt; q.vy+=300*dt; q.x+=q.vx*dt; q.y+=q.vy*dt; if(q.t<=0) particles.splice(i,1); }
+  for(let i=floaters.length-1;i>=0;i--){ const f=floaters[i]; f.t-=dt; f.y-=40*dt; if(f.t<=0) floaters.splice(i,1); }
+  for(const pl of plats){ if(pl.bump>0) pl.bump-=dt; }
+  if(p>=1){
+    const t = curQ().tx;
+    floaters.push({x:pos.x,y:pos.y-20,text:t.dir<0?"Returned ✓":"Credited ✓",col:"#5fd893",t:1.4});
+    for(let i=0;i<18;i++) particles.push({x:pos.x,y:pos.y,vx:rand(-180,180),vy:rand(-260,-60),t:0.8,col:i%2?"#f2c14e":"#5fd893"});
+    S.screen = "cleared"; sendAnim = null;
+    setTimeout(overlayCleared, reduced?0:450);
+  }
+}
+function drawSend(){
+  if(!sendAnim) return;
+  const q = curQ(), t = q.tx, pos = sendPos(Math.min(1, sendAnim.t/sendAnim.dur));
+  const cur = CASH.find(c=>c.c===t.ccy) || {s:t.ccy};
+  ctx.save(); ctx.translate(pos.x,pos.y);
+  ctx.fillStyle="#b8861b"; ctx.beginPath(); ctx.arc(0,2,18,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#f2c14e"; ctx.beginPath(); ctx.arc(0,0,18,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle="#b8861b"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,13.5,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle="#6b4a0e"; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.font=`700 ${cur.s.length<=1?18:cur.s.length===2?14:10}px "JetBrains Mono", monospace`; ctx.fillText(cur.s,0,1);
+  const label = `${t.ccy} ${t.amt}`;
+  ctx.font='700 13px "JetBrains Mono", monospace';
+  const lw = ctx.measureText(label).width + 18;
+  ctx.fillStyle="#eef7f0"; rr(ctx,-lw/2,-48,lw,22,11); ctx.fill();
+  ctx.strokeStyle="#b8861b"; ctx.lineWidth=2; rr(ctx,-lw/2,-48,lw,22,11); ctx.stroke();
+  ctx.fillStyle="#10302a"; ctx.fillText(label,0,-36.5);
+  ctx.restore();
+}
+function drawCash(k){
+  const blink = k.life-k.age < 2 && Math.floor(k.age*8)%2;
+  ctx.save(); ctx.globalAlpha = blink ? .35 : 1;
+  ctx.translate(k.x+13,k.y+13);
+  ctx.scale(reduced?1:Math.max(.4,Math.abs(Math.cos(k.age*3))),1);
+  ctx.fillStyle="#b8861b"; ctx.beginPath(); ctx.arc(0,1.5,12.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#f2c14e"; ctx.beginPath(); ctx.arc(0,0,12.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle="#b8861b"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,9.5,0,Math.PI*2); ctx.stroke();
+  const s = k.cur.s; ctx.fillStyle="#6b4a0e"; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.font = `700 ${s.length<=1?13:s.length===2?10:7.5}px "JetBrains Mono", monospace`;
+  ctx.fillText(s,0,0.5);
+  ctx.restore();
+}
+function render(){
+  ctx.setTransform(DPR*SC,0,0,DPR*SC,0,0);
+  ctx.save();
+  if(shake>0){ ctx.translate(rand(-4,4)*shake*3, rand(-3,3)*shake*3); }
+  if(bgCanvas) ctx.drawImage(bgCanvas,0,0,W,H);
+  const cq = curQ();
+  if(cq && cq.tx){
+    const lit = S.screen==="sending" || S.screen==="cleared";
+    drawBank(bankX(-1),cq.tx.from,cq.tx.fromCity,lit);
+    drawBank(bankX(1),cq.tx.to,cq.tx.toCity,lit);
+  }
+  for(const p of plats) if(p.kind!=="ground") drawBlock(p);
+  for(const k of cash) drawCash(k);
+  for(const t of tokens) drawToken(t);
+  // player shadow + body
+  ctx.fillStyle="rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(P.x+P.w/2, GY+2, 12, 3, 0, 0, Math.PI*2); ctx.fill();
+  const blink = P.inv>0 && Math.floor(P.inv*12)%2===0;
+  drawAvatar(ctx,P.x,P.y,P.face,P.run,avatarIdx,!P.onGround,blink);
+  drawSend();
+  for(const p of particles){ ctx.globalAlpha=Math.max(0,p.t*1.6); ctx.fillStyle=p.col; ctx.fillRect(p.x-2,p.y-2,4,4); }
+  ctx.globalAlpha=1;
+  ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+  for(const f of floaters){ ctx.globalAlpha=Math.min(1,f.t*1.5); ctx.font='700 16px "Pixelify Sans", monospace'; ctx.fillStyle="#0b1d1a"; ctx.fillText(f.text,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,f.y); }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.033,(now-last)/1000); last = now;
+  if(!$("#game").hidden){
+    if(S.screen==="play") update(dt);
+    else if(S.screen==="sending" && sendAnim) updateSend(dt);
+    else { clock+=dt; for(const p of plats){ if(p.bump>0) p.bump-=dt; } }
+    render();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =============== BOOT =============== */
+function start(data){
+  renderMenu();
+  if(window.ResizeObserver) new ResizeObserver(()=>{ if(!$("#game").hidden) layout(); }).observe(stage);
+  addEventListener("resize", ()=>{ if(!$("#game").hidden) layout(); });
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ widthCache.clear(); tokens.forEach(t=>t.w=tokenW(t.term)); if(!$("#game").hidden) bgCanvas=renderBg(); renderMenu(); });
+  if(data && data.desk && DESKS.some(d=>d.id===data.desk)){
+    S.desk = DESKS.find(d=>d.id===data.desk); S.qi = Math.min(data.qi||0,S.desk.qs.length-1); S.score=data.score||0; S.lives=Math.max(1,data.lives||MAX_LIVES);
+    document.body.classList.add("playing");
+    $("#menu").hidden=true; $("#game").hidden=false; layout(true); beginQuestion();
+  }
+  requestAnimationFrame(t=>{ last=t; frame(t); });
+}
+window.claude?.hot?.snapshot?.(()=> S.desk && ["play","paused","ready","cleared","clearing"].includes(S.screen) ? {desk:S.desk.id, qi:S.qi, score:S.score, lives:S.lives} : {});
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</body>
+</html>
